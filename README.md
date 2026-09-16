@@ -1,4 +1,4 @@
-# SpendWise-AI
+
 # 💰 Spendwise AI — AI Personal Finance Manager
 
 > **See your money. Understand your future.**
