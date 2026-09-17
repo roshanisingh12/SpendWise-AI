@@ -28,7 +28,8 @@ export async function login(data: LoginInput) {
   }
 
   // Strip passwordHash before returning
-  const { passwordHash: _, ...safeUser } = user;
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  void _passwordHash;
   const token = signToken(safeUser.id, safeUser.email, safeUser.name);
 
   return { user: safeUser, token };
@@ -46,6 +47,6 @@ function signToken(userId: string, email: string, name: string): string {
   return jwt.sign(
     { userId, email, name },
     env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN as any }
+    { expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] }
   );
 }

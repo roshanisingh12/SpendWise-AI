@@ -29,13 +29,13 @@ export class ApiService {
   }
 
   // --- Auth ---
-  static login(credentials: any) { return this.request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }); }
-  static register(userData: any) { return this.request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }); }
+  static login(credentials: Record<string, unknown>) { return this.request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }); }
+  static register(userData: Record<string, unknown>) { return this.request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }); }
   static getMe() { return this.request('/auth/me'); }
 
   // --- Transactions ---
   static getTransactions(params = '') { return this.request(`/transactions${params ? '?' + params : ''}`); }
-  static createTransaction(data: any) { return this.request('/transactions', { method: 'POST', body: JSON.stringify(data) }); }
+  static createTransaction(data: Record<string, unknown>) { return this.request('/transactions', { method: 'POST', body: JSON.stringify(data) }); }
   
   // --- Budgets ---
   static getBudgets() { return this.request('/budgets'); }
