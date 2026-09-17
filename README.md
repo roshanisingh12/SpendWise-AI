@@ -614,3 +614,4 @@ Spendwise AI is an educational/project application. Its AI-generated insights ar
 ## 💙 Spendwise AI
 
 ### **See your money. Understand your future.**
+  

@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { RegisterInput, LoginInput } from '../schemas/validation';
 import * as userRepo from '../repositories/userRepository';
+import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
 
 export async function register(data: RegisterInput) {
@@ -11,6 +12,29 @@ export async function register(data: RegisterInput) {
   }
 
   const user = await userRepo.createUser(data);
+  
+  // Seed default categories
+  const defaultCategories = [
+    { name: 'Housing', type: 'EXPENSE' as const, color: '#5078e5' },
+    { name: 'Groceries', type: 'EXPENSE' as const, color: '#22a06b' },
+    { name: 'Dining', type: 'EXPENSE' as const, color: '#f59e0b' },
+    { name: 'Transport', type: 'EXPENSE' as const, color: '#a855f7' },
+    { name: 'Subscriptions', type: 'EXPENSE' as const, color: '#ef6b73' },
+    { name: 'Shopping', type: 'EXPENSE' as const, color: '#ef8354' },
+    { name: 'Health', type: 'EXPENSE' as const, color: '#10b8b0' },
+    { name: 'Education', type: 'EXPENSE' as const, color: '#64748b' },
+    { name: 'Entertainment', type: 'EXPENSE' as const, color: '#e879f9' },
+    { name: 'Income', type: 'INCOME' as const, color: '#22a06b' },
+  ];
+  
+  await Promise.all(
+    defaultCategories.map(cat => 
+      prisma.category.create({
+        data: { ...cat, userId: user.id }
+      })
+    )
+  );
+
   const token = signToken(user.id, user.email, user.name);
 
   return { user, token };
