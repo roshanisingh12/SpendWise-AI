@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
+import { ApiService } from './services/api';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -46,8 +47,8 @@ import {
 type Theme = 'light' | 'dark';
 type ThemePreference = Theme | 'system';
 type Page = 'dashboard' | 'transactions' | 'analytics' | 'budgets' | 'savings' | 'assistant' | 'settings';
-type Transaction = { id: string; merchant: string; category: string; date: string; amount: number; type: 'income' | 'expense'; account: string };
-type Budget = { id: string; category: string; limit: number };
+type Transaction = { id: string; merchant: string; category: string; categoryId?: string; date: string; amount: number; type: 'income' | 'expense'; account: string };
+type Budget = { id: string; category: string; categoryId?: string; limit: number };
 type Goal = { id: string; name: string; target: number; saved: number; date: string; color: string };
 
 type IconType = typeof LayoutDashboard;
@@ -162,7 +163,9 @@ function App() {
   const [goals, setGoals] = useStoredState<Goal[]>('spendwise-goals', seedGoals);
   const [page, setPage] = useState<Page>('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications, setNotifications] = useState(0);
+  const [notificationItems, setNotificationItems] = useState<any[]>([]);
+  const [insights, setInsights] = useState<any[]>([]);
   const [modal, setModal] = useState<'transaction' | 'budget' | 'goal' | 'upload' | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [toast, setToast] = useState('');
@@ -562,7 +565,7 @@ function Dashboard({
     <>
       <PageHeader
         eyebrow={todayFormatted}
-        title="Good morning, Alex"
+        title={`Good morning, ${user?.name?.split(' ')[0] || 'User'}`}
         description="Here’s your financial snapshot for the last 6 months."
         action={
           <div className="header-actions">
@@ -576,10 +579,10 @@ function Dashboard({
         }
       />
       <section className="stats-grid">
-        <StatCard label="Total balance" value={money(18420 + savings)} change="8.4%" icon={<Wallet size={18} />} />
-        <StatCard label="Total income" value={money(income)} change="5.2%" icon={<ArrowDownRight size={18} />} />
-        <StatCard label="Total expenses" value={money(expense)} change="2.1%" positive={false} icon={<ArrowUpRight size={18} />} />
-        <StatCard label="Savings rate" value={`${savingsRate}%`} change="4.8%" icon={<Target size={18} />} />
+        <StatCard label="Total balance" value={money(savings)} icon={<Wallet size={18} />} />
+        <StatCard label="Total income" value={money(income)} icon={<ArrowDownRight size={18} />} />
+        <StatCard label="Total expenses" value={money(expense)} positive={false} icon={<ArrowUpRight size={18} />} />
+        <StatCard label="Savings rate" value={`${savingsRate}%`} icon={<Target size={18} />} />
       </section>
       <div className="dashboard-grid">
         <div className="card chart-card trend-card">
@@ -1700,8 +1703,9 @@ function SettingsPanel({
   setToast: (message: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<'general' | 'notifications' | 'security' | 'data'>('general');
-  const [fullName, setFullName] = useState('Alex Morgan');
-  const [email, setEmail] = useState('alex.morgan@example.com');
+  const { user } = useAuth();
+  const [fullName, setFullName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
 
   return (
     <>

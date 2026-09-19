@@ -6,20 +6,44 @@ import { useAuth } from '../context/AuthContext';
 /** Map HTTP-status-bearing error messages to user-friendly strings. */
 function friendlyError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('401') || msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('incorrect') || msg.toLowerCase().includes('wrong')) {
-    return 'Invalid email or password. Please try again.';
-  }
-  if (msg.includes('409') || msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate')) {
-    return 'An account with that email already exists. Try logging in.';
-  }
-  if (msg.includes('422') || msg.toLowerCase().includes('validation')) {
+
+  // 400 field-level Zod errors — check FIRST to avoid keyword false-matches
+  if (msg.startsWith('400:')) {
+    const fieldPart = msg.replace(/^400:\s*/, '');
+    if (fieldPart.toLowerCase().includes('email')) {
+      return 'Please enter a valid email address.';
+    }
+    if (fieldPart.toLowerCase().includes('password')) {
+      return 'Password must be at least 8 characters and include a number and uppercase letter.';
+    }
+    if (fieldPart.toLowerCase().includes('name')) {
+      return 'Please enter your name (at least 2 characters).';
+    }
     return 'Please check your inputs and try again.';
   }
-  if (msg.includes('429') || msg.toLowerCase().includes('too many')) {
+  // 401 → wrong credentials
+  if (msg.startsWith('401:') || msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('incorrect') || msg.toLowerCase().includes('wrong')) {
+    return 'Invalid email or password. Please try again.';
+  }
+  // 409 → duplicate account
+  if (msg.startsWith('409:') || msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate')) {
+    return 'An account with that email already exists. Try logging in.';
+  }
+  // 422 explicit unprocessable entity
+  if (msg.startsWith('422:')) {
+    return 'Please check your inputs and try again.';
+  }
+  // Rate limiting
+  if (msg.startsWith('429:') || msg.toLowerCase().includes('too many')) {
     return 'Too many attempts. Please wait a moment and try again.';
   }
-  if (msg.includes('500') || msg.toLowerCase().includes('server')) {
+  // Server errors
+  if (msg.startsWith('500:') || msg.toLowerCase().includes('server')) {
     return 'A server error occurred. Please try again later.';
+  }
+  // Network / CORS failure
+  if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
+    return 'Unable to reach the server. Please check your connection and try again.';
   }
   // Fallback: show the message but never a stack trace
   return msg.split('\n')[0] || 'Authentication failed. Please try again.';
@@ -47,6 +71,14 @@ export function AuthScreen() {
     if (!password) { setError('Please enter your password.'); return; }
     if (mode === 'register' && password.length < 8) {
       setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (mode === 'register' && !/[A-Z]/.test(password)) {
+      setError('Password must contain at least one uppercase letter.');
+      return;
+    }
+    if (mode === 'register' && !/[0-9]/.test(password)) {
+      setError('Password must contain at least one number.');
       return;
     }
 
@@ -104,7 +136,7 @@ export function AuthScreen() {
             onChange={e => setPassword(e.target.value)}
             required
             disabled={submitting}
-            placeholder={mode === 'register' ? 'At least 8 characters' : 'Your password'}
+            placeholder={mode === 'register' ? 'Min 8 chars, 1 uppercase, 1 number' : 'Your password'}
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </div>
