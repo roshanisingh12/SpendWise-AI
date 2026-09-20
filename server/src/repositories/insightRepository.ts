@@ -1,9 +1,13 @@
 import { prisma } from '../config/prisma';
 
-export async function listInsights(userId: string) {
+const MAX_INSIGHTS = 50;
+
+export async function listInsights(userId: string, limit = MAX_INSIGHTS) {
+  const safeLimit = Math.min(limit, MAX_INSIGHTS);
   return prisma.financialInsight.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
+    take: safeLimit,
   });
 }
 

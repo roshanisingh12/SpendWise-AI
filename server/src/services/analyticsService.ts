@@ -45,48 +45,47 @@ export async function getSummary(userId: string, year?: number, month?: number) 
 }
 
 export async function getMonthlyAnalytics(userId: string, months = 6) {
+  // Clamp months to 1–24 for safety
+  const safeMonths = Math.max(1, Math.min(24, months));
   const now = new Date();
-  const results: {
-    month: string;
-    year: number;
-    monthNum: number;
-    income: number;
-    expenses: number;
-    balance: number;
-  }[] = [];
 
-  for (let i = months - 1; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  // Build all month bounds up-front
+  const monthRanges = Array.from({ length: safeMonths }, (_, i) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (safeMonths - 1 - i), 1);
     const y = date.getFullYear();
     const m = date.getMonth() + 1;
-    const startDate = new Date(y, m - 1, 1);
-    const endDate = new Date(y, m, 0, 23, 59, 59, 999);
-
-    const [incomeAgg, expenseAgg] = await Promise.all([
-      prisma.transaction.aggregate({
-        where: { userId, type: 'INCOME', date: { gte: startDate, lte: endDate } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { userId, type: 'EXPENSE', date: { gte: startDate, lte: endDate } },
-        _sum: { amount: true },
-      }),
-    ]);
-
-    const income = toNum(incomeAgg._sum.amount);
-    const expenses = toNum(expenseAgg._sum.amount);
-    results.push({
-      month: date.toLocaleString('en-US', { month: 'short' }),
+    return {
+      label: date.toLocaleString('en-US', { month: 'short' }),
       year: y,
       monthNum: m,
-      income,
-      expenses,
-      balance: income - expenses,
-    });
-  }
+      startDate: new Date(y, m - 1, 1),
+      endDate: new Date(y, m, 0, 23, 59, 59, 999),
+    };
+  });
+
+  // Fetch all months in parallel
+  const results = await Promise.all(
+    monthRanges.map(async ({ label, year, monthNum, startDate, endDate }) => {
+      const [incomeAgg, expenseAgg] = await Promise.all([
+        prisma.transaction.aggregate({
+          where: { userId, type: 'INCOME', date: { gte: startDate, lte: endDate } },
+          _sum: { amount: true },
+        }),
+        prisma.transaction.aggregate({
+          where: { userId, type: 'EXPENSE', date: { gte: startDate, lte: endDate } },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const income = toNum(incomeAgg._sum.amount);
+      const expenses = toNum(expenseAgg._sum.amount);
+      return { month: label, year, monthNum, income, expenses, balance: income - expenses };
+    })
+  );
 
   return results;
 }
+
 
 export async function getCategoryAnalytics(userId: string, startDate?: string, endDate?: string) {
   const where: Record<string, unknown> = { userId, type: 'EXPENSE' };

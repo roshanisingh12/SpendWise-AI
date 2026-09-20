@@ -40,7 +40,7 @@ export function errorHandler(
 
   // Prisma known errors
   if ('code' in err) {
-    const prismaError = err as { code: string; meta?: { target?: string[] } };
+    const prismaError = err as { code: string; meta?: { target?: string[]; field_name?: string } };
     if (prismaError.code === 'P2002') {
       const field = prismaError.meta?.target?.[0] ?? 'field';
       res.status(409).json({
@@ -49,10 +49,24 @@ export function errorHandler(
       });
       return;
     }
-    if (prismaError.code === 'P2025') {
+    if (prismaError.code === 'P2025' || prismaError.code === 'P2018') {
       res.status(404).json({
         success: false,
         message: 'Record not found.',
+      });
+      return;
+    }
+    if (prismaError.code === 'P2003') {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid reference: a related record does not exist.',
+      });
+      return;
+    }
+    if (prismaError.code === 'P2014') {
+      res.status(400).json({
+        success: false,
+        message: 'The request violates a required relation constraint.',
       });
       return;
     }
