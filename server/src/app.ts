@@ -15,6 +15,7 @@ import savingsGoalRoutes from './routes/savingsGoalRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import insightRoutes from './routes/insightRoutes';
+import aiRoutes from './routes/aiRoutes';
 
 const app = express();
 
@@ -46,8 +47,17 @@ const authLimiter = rateLimit({
   message: { success: false, message: 'Too many auth requests. Please try again in 15 minutes.' },
 });
 
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: env.NODE_ENV === 'development' ? 200 : 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many AI requests. Please wait a moment before asking again.' },
+});
+
 app.use(limiter);
 app.use('/api/auth', authLimiter);
+app.use('/api/ai', aiLimiter);
 
 // ─── Body Parser ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
@@ -73,6 +83,7 @@ app.use('/api/savings-goals', savingsGoalRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/insights', insightRoutes);
+app.use('/api/ai', aiRoutes);
 
 // ─── 404 & Error Handlers ─────────────────────────────────────────────────────
 app.use(notFoundHandler);

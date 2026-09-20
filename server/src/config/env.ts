@@ -10,6 +10,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(5000),
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  AI_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  AI_PROVIDER: z.enum(['gemini', 'openai', 'groq', 'claude', 'custom']).default('gemini').optional(),
+  AI_MODEL: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

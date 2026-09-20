@@ -11,6 +11,7 @@ interface ListTransactionsOptions {
   categoryId?: string;
   startDate?: string;
   endDate?: string;
+  search?: string;
 }
 
 export async function listTransactions(opts: ListTransactionsOptions) {
@@ -22,6 +23,9 @@ export async function listTransactions(opts: ListTransactionsOptions) {
     where.date = {};
     if (opts.startDate) (where.date as Prisma.DateTimeFilter).gte = new Date(opts.startDate);
     if (opts.endDate) (where.date as Prisma.DateTimeFilter).lte = new Date(opts.endDate);
+  }
+  if (opts.search) {
+    where.description = { contains: opts.search, mode: 'insensitive' };
   }
 
   const [data, total] = await Promise.all([

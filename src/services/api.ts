@@ -3,6 +3,51 @@
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
+export interface ApiCategory {
+  id: string;
+  name: string;
+  type: 'INCOME' | 'EXPENSE';
+  icon?: string | null;
+  color?: string | null;
+}
+
+export interface ApiTransaction {
+  id: string;
+  merchant: string;
+  category: string;
+  categoryId?: string | null;
+  date: string;
+  amount: number;
+  type: 'income' | 'expense';
+  account: string;
+}
+
+export interface CreateTransactionPayload {
+  type: 'INCOME' | 'EXPENSE';
+  amount: number;
+  categoryId?: string | null;
+  description?: string | null;
+  date: string;
+}
+
+export interface UpdateTransactionPayload {
+  type?: 'INCOME' | 'EXPENSE';
+  amount?: number;
+  categoryId?: string | null;
+  description?: string | null;
+  date?: string;
+}
+
+export interface TransactionFilterParams {
+  type?: 'INCOME' | 'EXPENSE' | 'income' | 'expense' | 'All';
+  categoryId?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  limit?: number;
+  page?: number;
+}
+
 export class ApiService {
   static async request(endpoint: string, options: RequestInit = {}) {
     const token = localStorage.getItem('spendwise-token');
@@ -44,59 +89,90 @@ export class ApiService {
   static logout() { return this.request('/auth/logout', { method: 'POST' }); }
 
   // --- Categories ---
-  static async getCategories() { 
+  static async getCategories(): Promise<ApiCategory[]> { 
     const result = await this.request('/categories'); 
-    return result.categories || [];
+    return (result.categories || result || []) as ApiCategory[];
   }
-  static createCategory(data: any) { return this.request('/categories', { method: 'POST', body: JSON.stringify(data) }); }
+  static createCategory(data: { name: string; type: 'INCOME' | 'EXPENSE'; icon?: string; color?: string }) {
+    return this.request('/categories', { method: 'POST', body: JSON.stringify(data) });
+  }
 
   // --- Transactions ---
   // Maps backend response to frontend UI type
-  static async getTransactions(params = '') { 
-    const result = await this.request(`/transactions${params ? '?' + params : '?limit=1000'}`); 
-    return (result.data || []).map((item: any) => ({
+  static async getTransactions(params?: string | TransactionFilterParams): Promise<ApiTransaction[]> { 
+    let queryString = '';
+    if (typeof params === 'string') {
+      queryString = params ? (params.startsWith('?') ? params : `?${params}`) : '?limit=1000';
+    } else if (params && typeof params === 'object') {
+      const sp = new URLSearchParams();
+      if (params.type && params.type !== 'All') sp.append('type', params.type.toUpperCase());
+      if (params.categoryId && params.categoryId !== 'All') sp.append('categoryId', params.categoryId);
+      if (params.startDate) sp.append('startDate', params.startDate);
+      if (params.endDate) sp.append('endDate', params.endDate);
+      if (params.search) sp.append('search', params.search);
+      sp.append('limit', String(params.limit ?? 1000));
+      if (params.page) sp.append('page', String(params.page));
+      queryString = `?${sp.toString()}`;
+    } else {
+      queryString = '?limit=1000';
+    }
+
+    const result = await this.request(`/transactions${queryString}`); 
+    const list = (result.data || result || []) as Array<{
+      id: string;
+      description?: string | null;
+      category?: { name?: string } | null;
+      categoryId?: string | null;
+      date: string;
+      amount: string | number;
+      type: 'INCOME' | 'EXPENSE';
+    }>;
+
+    return list.map((item) => ({
       id: item.id,
       merchant: item.description || 'Unknown',
       category: item.category?.name || 'Uncategorized',
-      categoryId: item.categoryId,
-      date: item.date.split('T')[0],
+      categoryId: item.categoryId ?? undefined,
+      date: typeof item.date === 'string' ? item.date.split('T')[0] : new Date(item.date).toISOString().split('T')[0],
       amount: Number(item.amount),
-      type: item.type.toLowerCase(),
+      type: item.type.toLowerCase() as 'income' | 'expense',
       account: 'Checking'
     }));
   }
   
-  static async createTransaction(data: Record<string, unknown>) { 
+  static async createTransaction(data: CreateTransactionPayload): Promise<ApiTransaction> { 
     const result = await this.request('/transactions', { method: 'POST', body: JSON.stringify(data) }); 
-    const item = result.transaction;
+    const item = result.transaction || result;
     return {
       id: item.id,
       merchant: item.description || 'Unknown',
       category: item.category?.name || 'Uncategorized',
-      categoryId: item.categoryId,
-      date: item.date.split('T')[0],
+      categoryId: item.categoryId ?? undefined,
+      date: typeof item.date === 'string' ? item.date.split('T')[0] : new Date(item.date).toISOString().split('T')[0],
       amount: Number(item.amount),
-      type: item.type.toLowerCase(),
+      type: item.type.toLowerCase() as 'income' | 'expense',
       account: 'Checking'
     };
   }
   
-  static async updateTransaction(id: string, data: any) { 
+  static async updateTransaction(id: string, data: UpdateTransactionPayload): Promise<ApiTransaction> { 
     const result = await this.request(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); 
-    const item = result.transaction;
+    const item = result.transaction || result;
     return {
       id: item.id,
       merchant: item.description || 'Unknown',
       category: item.category?.name || 'Uncategorized',
-      categoryId: item.categoryId,
-      date: item.date.split('T')[0],
+      categoryId: item.categoryId ?? undefined,
+      date: typeof item.date === 'string' ? item.date.split('T')[0] : new Date(item.date).toISOString().split('T')[0],
       amount: Number(item.amount),
-      type: item.type.toLowerCase(),
+      type: item.type.toLowerCase() as 'income' | 'expense',
       account: 'Checking'
     };
   }
   
-  static deleteTransaction(id: string) { return this.request(`/transactions/${id}`, { method: 'DELETE' }); }
+  static deleteTransaction(id: string): Promise<void> {
+    return this.request(`/transactions/${id}`, { method: 'DELETE' });
+  }
   
   // --- Budgets ---
   static async getBudgets() { 
@@ -143,4 +219,20 @@ export class ApiService {
 
   // --- Insights ---
   static getInsights() { return this.request('/insights'); }
+
+  // --- AI Assistant ---
+  static async chatWithAI(
+    message: string,
+    conversationHistory?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+  ) {
+    return this.request('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, conversationHistory }),
+    });
+  }
+
+  static async getAISuggestions() {
+    return this.request('/ai/suggestions');
+  }
 }
+

@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
-import { ApiService } from './services/api';
+import {
+  ApiService,
+  type ApiCategory,
+  type ApiTransaction,
+  type CreateTransactionPayload,
+  type UpdateTransactionPayload,
+} from './services/api';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -47,52 +53,14 @@ import {
 type Theme = 'light' | 'dark';
 type ThemePreference = Theme | 'system';
 type Page = 'dashboard' | 'transactions' | 'analytics' | 'budgets' | 'savings' | 'assistant' | 'settings';
-type Transaction = { id: string; merchant: string; category: string; categoryId?: string; date: string; amount: number; type: 'income' | 'expense'; account: string };
-type Budget = { id: string; category: string; categoryId?: string; limit: number };
+type Transaction = { id: string; merchant: string; category: string; categoryId?: string | null; date: string; amount: number; type: 'income' | 'expense'; account: string };
+type Budget = { id: string; category: string; categoryId?: string | null; limit: number };
 type Goal = { id: string; name: string; target: number; saved: number; date: string; color: string };
 
 type IconType = typeof LayoutDashboard;
 
 const categoryColors: Record<string, string> = { Housing: '#5078e5', Groceries: '#22a06b', Dining: '#f59e0b', Transport: '#a855f7', Subscriptions: '#ef6b73', Shopping: '#ef8354', Health: '#10b8b0', Education: '#64748b', Entertainment: '#e879f9', Income: '#22a06b' };
 const categories = ['All', 'Housing', 'Groceries', 'Dining', 'Transport', 'Subscriptions', 'Shopping', 'Health', 'Education', 'Entertainment'];
-
-const seedTransactions: Transaction[] = [
-  { id: 't1', merchant: 'Northstar Payroll', category: 'Income', date: '2026-06-01', amount: 5400, type: 'income', account: 'Checking' },
-  { id: 't2', merchant: 'Juniper Apartments', category: 'Housing', date: '2026-06-02', amount: 1650, type: 'expense', account: 'Checking' },
-  { id: 't3', merchant: 'Whole Foods Market', category: 'Groceries', date: '2026-06-04', amount: 128.46, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't4', merchant: 'The Daily Press', category: 'Dining', date: '2026-06-06', amount: 18.25, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't5', merchant: 'Metro Transit', category: 'Transport', date: '2026-06-07', amount: 42, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't6', merchant: 'Luma Streaming', category: 'Subscriptions', date: '2026-06-08', amount: 14.99, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't7', merchant: 'Brightline Studios', category: 'Income', date: '2026-05-15', amount: 850, type: 'income', account: 'Checking' },
-  { id: 't8', merchant: 'Northstar Payroll', category: 'Income', date: '2026-05-01', amount: 5400, type: 'income', account: 'Checking' },
-  { id: 't9', merchant: 'Juniper Apartments', category: 'Housing', date: '2026-05-02', amount: 1650, type: 'expense', account: 'Checking' },
-  { id: 't10', merchant: 'Fresh Market', category: 'Groceries', date: '2026-05-08', amount: 214.8, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't11', merchant: 'Kite & Co.', category: 'Shopping', date: '2026-05-12', amount: 179, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't12', merchant: 'The Green Table', category: 'Dining', date: '2026-05-18', amount: 68.4, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't13', merchant: 'Northstar Payroll', category: 'Income', date: '2026-04-01', amount: 5400, type: 'income', account: 'Checking' },
-  { id: 't14', merchant: 'Juniper Apartments', category: 'Housing', date: '2026-04-02', amount: 1650, type: 'expense', account: 'Checking' },
-  { id: 't15', merchant: 'Fresh Market', category: 'Groceries', date: '2026-04-10', amount: 156.32, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't16', merchant: 'CloudDesk Pro', category: 'Subscriptions', date: '2026-04-11', amount: 29, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't17', merchant: 'HealthFirst Pharmacy', category: 'Health', date: '2026-04-19', amount: 64.75, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't18', merchant: 'Northstar Payroll', category: 'Income', date: '2026-03-01', amount: 5400, type: 'income', account: 'Checking' },
-  { id: 't19', merchant: 'Juniper Apartments', category: 'Housing', date: '2026-03-02', amount: 1650, type: 'expense', account: 'Checking' },
-  { id: 't20', merchant: 'Atlas Flights', category: 'Shopping', date: '2026-03-14', amount: 480, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't21', merchant: 'The Green Table', category: 'Dining', date: '2026-03-22', amount: 92.16, type: 'expense', account: 'Visa •••• 4421' },
-  { id: 't22', merchant: 'Northstar Payroll', category: 'Income', date: '2026-02-01', amount: 5400, type: 'income', account: 'Checking' },
-  { id: 't23', merchant: 'Juniper Apartments', category: 'Housing', date: '2026-02-02', amount: 1650, type: 'expense', account: 'Checking' },
-  { id: 't24', merchant: 'Market Street Grocer', category: 'Groceries', date: '2026-02-11', amount: 186.74, type: 'expense', account: 'Visa •••• 4421' },
-];
-const seedBudgets: Budget[] = [
-  { id: 'b1', category: 'Housing', limit: 1800 },
-  { id: 'b2', category: 'Groceries', limit: 500 },
-  { id: 'b3', category: 'Dining', limit: 300 },
-  { id: 'b4', category: 'Shopping', limit: 400 },
-];
-const seedGoals: Goal[] = [
-  { id: 'g1', name: 'Emergency fund', target: 10000, saved: 6800, date: '2026-12-31', color: '#22a06b' },
-  { id: 'g2', name: 'Japan trip', target: 3500, saved: 1900, date: '2027-04-01', color: '#5078e5' },
-  { id: 'g3', name: 'New workspace', target: 2400, saved: 820, date: '2026-11-15', color: '#a855f7' },
-];
 
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 const preciseMoney = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -158,17 +126,50 @@ function useStoredState<T>(key: string, initial: T): [T, (value: T | ((current: 
 function App() {
   const { user, loading, logout } = useAuth();
   const [theme, setTheme] = useStoredState<ThemePreference>('spendwise-theme', 'system');
-  const [transactions, setTransactions] = useStoredState<Transaction[]>('spendwise-transactions', seedTransactions);
-  const [budgets, setBudgets] = useStoredState<Budget[]>('spendwise-budgets', seedBudgets);
-  const [goals, setGoals] = useStoredState<Goal[]>('spendwise-goals', seedGoals);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categoriesList, setCategoriesList] = useState<ApiCategory[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState<boolean>(true);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
+
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [page, setPage] = useState<Page>('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifications, setNotifications] = useState(0);
-  const [notificationItems, setNotificationItems] = useState<any[]>([]);
-  const [insights, setInsights] = useState<any[]>([]);
+  const [, setNotificationItems] = useState<any[]>([]);
+  const [, setInsights] = useState<any[]>([]);
   const [modal, setModal] = useState<'transaction' | 'budget' | 'goal' | 'upload' | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [toast, setToast] = useState('');
+
+  const loadUserData = useCallback(async () => {
+    if (!user) return;
+    setLoadingTransactions(true);
+    setTransactionError(null);
+    try {
+      const [fetchedTx, fetchedCats, fetchedBudgets, fetchedGoals] = await Promise.all([
+        ApiService.getTransactions(),
+        ApiService.getCategories().catch(() => []),
+        ApiService.getBudgets().catch(() => []),
+        ApiService.getGoals().catch(() => []),
+      ]);
+      setTransactions(fetchedTx);
+      setCategoriesList(fetchedCats);
+      setBudgets(fetchedBudgets);
+      setGoals(fetchedGoals);
+    } catch (err: any) {
+      console.error('Failed to load user financial data:', err);
+      setTransactionError(err?.message || 'Failed to load transaction data.');
+    } finally {
+      setLoadingTransactions(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadUserData();
+    }
+  }, [user, loadUserData]);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -187,11 +188,9 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const resetDemo = () => {
-    setTransactions(seedTransactions);
-    setBudgets(seedBudgets);
-    setGoals(seedGoals);
-    setToast('Demo data restored');
+  const syncData = async () => {
+    await loadUserData();
+    setToast('Synced with server');
   };
 
   const exportData = () => {
@@ -210,54 +209,183 @@ function App() {
     setMobileOpen(false);
   };
 
-  const addTransaction = (transaction: Transaction) => {
-    setTransactions(current => [transaction, ...current]);
-    setModal(null);
-    setToast('Transaction added');
+  const addTransaction = async (transaction: Transaction) => {
+    try {
+      const matchedCat = categoriesList.find(
+        (c) => c.name.toLowerCase() === transaction.category.toLowerCase()
+      );
+      const payload: CreateTransactionPayload = {
+        type: (transaction.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
+        amount: transaction.amount,
+        categoryId: matchedCat?.id || transaction.categoryId || null,
+        description: transaction.merchant,
+        date: transaction.date,
+      };
+      const created = await ApiService.createTransaction(payload);
+      setTransactions((current) => [created, ...current]);
+      setModal(null);
+      setToast('Transaction added successfully');
+    } catch (err: any) {
+      console.error('Failed to add transaction:', err);
+      setToast(`Failed to add transaction: ${err?.message || 'Unknown error'}`);
+      throw err;
+    }
   };
 
-  const saveTransaction = (transaction: Transaction) => {
-    setTransactions(current => current.map(item => (item.id === transaction.id ? transaction : item)));
-    setEditingTransaction(null);
-    setToast('Transaction updated');
+  const saveTransaction = async (transaction: Transaction) => {
+    try {
+      const matchedCat = categoriesList.find(
+        (c) => c.name.toLowerCase() === transaction.category.toLowerCase()
+      );
+      const payload: UpdateTransactionPayload = {
+        type: (transaction.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
+        amount: transaction.amount,
+        categoryId: matchedCat?.id || transaction.categoryId || null,
+        description: transaction.merchant,
+        date: transaction.date,
+      };
+      const updated = await ApiService.updateTransaction(transaction.id, payload);
+      setTransactions((current) =>
+        current.map((item) => (item.id === transaction.id ? updated : item))
+      );
+      setEditingTransaction(null);
+      setToast('Transaction updated successfully');
+    } catch (err: any) {
+      console.error('Failed to update transaction:', err);
+      setToast(`Failed to update transaction: ${err?.message || 'Unknown error'}`);
+      throw err;
+    }
   };
 
-  const deleteTransaction = (id: string) => {
-    setTransactions(current => current.filter(item => item.id !== id));
-    setToast('Transaction removed');
+  const deleteTransaction = async (id: string) => {
+    try {
+      await ApiService.deleteTransaction(id);
+      setTransactions((current) => current.filter((item) => item.id !== id));
+      setToast('Transaction removed');
+    } catch (err: any) {
+      console.error('Failed to delete transaction:', err);
+      setToast(`Failed to remove transaction: ${err?.message || 'Unknown error'}`);
+    }
   };
 
-  const addBudget = (budget: Budget) => {
-    setBudgets(current => [...current, budget]);
-    setModal(null);
-    setToast('Budget created');
+  const addBudget = async (budget: Budget) => {
+    try {
+      const matchedCat = categoriesList.find(
+        (c) => c.name.toLowerCase() === budget.category.toLowerCase()
+      );
+      const created = await ApiService.createBudget({
+        categoryId: matchedCat?.id || budget.categoryId || null,
+        amount: budget.limit,
+        period: 'MONTHLY',
+        startDate: new Date().toISOString().split('T')[0],
+      });
+      const newBudgetItem: Budget = {
+        id: created.budget?.id || created.id || budget.id,
+        category: created.budget?.category?.name || budget.category,
+        categoryId: created.budget?.categoryId || matchedCat?.id,
+        limit: Number(created.budget?.amount ?? budget.limit),
+      };
+      setBudgets((current) => [...current, newBudgetItem]);
+      setModal(null);
+      setToast('Budget created');
+    } catch (err: any) {
+      console.error('Failed to create budget:', err);
+      setToast(`Failed to create budget: ${err?.message || 'Unknown error'}`);
+      throw err;
+    }
   };
 
-  const addGoal = (goal: Goal) => {
-    setGoals(current => [...current, goal]);
-    setModal(null);
-    setToast('Savings goal created');
+  const deleteBudget = async (id: string) => {
+    try {
+      await ApiService.deleteBudget(id);
+      setBudgets((current) => current.filter((item) => item.id !== id));
+      setToast('Budget removed');
+    } catch (err: any) {
+      console.error('Failed to delete budget:', err);
+      setToast(`Failed to delete budget: ${err?.message || 'Unknown error'}`);
+    }
   };
 
-  const contribute = (id: string) => {
-    setGoals(current =>
-      current.map(goal => (goal.id === id ? { ...goal, saved: Math.min(goal.target, goal.saved + 250) } : goal))
-    );
-    setToast('Contribution added');
+  const addGoal = async (goal: Goal) => {
+    try {
+      const created = await ApiService.createGoal({
+        name: goal.name,
+        targetAmount: goal.target,
+        currentAmount: goal.saved,
+        targetDate: goal.date || null,
+      });
+      const newGoalItem: Goal = {
+        id: created.goal?.id || created.id || goal.id,
+        name: created.goal?.name || goal.name,
+        target: Number(created.goal?.targetAmount ?? goal.target),
+        saved: Number(created.goal?.currentAmount ?? goal.saved),
+        date: created.goal?.targetDate ? created.goal.targetDate.split('T')[0] : goal.date,
+        color: goal.color,
+      };
+      setGoals((current) => [...current, newGoalItem]);
+      setModal(null);
+      setToast('Savings goal created');
+    } catch (err: any) {
+      console.error('Failed to create goal:', err);
+      setToast(`Failed to create goal: ${err?.message || 'Unknown error'}`);
+      throw err;
+    }
   };
 
-  const importTransactions = (incoming: Transaction[]) => {
-    setTransactions(current => [
-      ...incoming.filter(
-        item =>
-          !current.some(
-            existing => existing.merchant === item.merchant && existing.date === item.date && existing.amount === item.amount
-          )
-      ),
-      ...current,
-    ]);
-    setModal(null);
-    setToast(`${incoming.length} rows checked and imported`);
+  const contribute = async (id: string) => {
+    const goal = goals.find((g) => g.id === id);
+    if (!goal) return;
+    const newSaved = Math.min(goal.target, goal.saved + 250);
+    try {
+      await ApiService.updateGoal(id, { currentAmount: newSaved });
+      setGoals((current) =>
+        current.map((g) => (g.id === id ? { ...g, saved: newSaved } : g))
+      );
+      setToast('Contribution added');
+    } catch (err: any) {
+      console.error('Failed to contribute to goal:', err);
+      setToast(`Failed to contribute: ${err?.message || 'Unknown error'}`);
+    }
+  };
+
+  const deleteGoal = async (id: string) => {
+    try {
+      await ApiService.deleteGoal(id);
+      setGoals((current) => current.filter((g) => g.id !== id));
+      setToast('Goal removed');
+    } catch (err: any) {
+      console.error('Failed to delete goal:', err);
+      setToast(`Failed to delete goal: ${err?.message || 'Unknown error'}`);
+    }
+  };
+
+  const importTransactions = async (incoming: Transaction[]) => {
+    try {
+      let count = 0;
+      for (const item of incoming) {
+        try {
+          const matchedCat = categoriesList.find(
+            (c) => c.name.toLowerCase() === item.category.toLowerCase()
+          );
+          await ApiService.createTransaction({
+            type: (item.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
+            amount: item.amount,
+            categoryId: matchedCat?.id || null,
+            description: item.merchant,
+            date: item.date,
+          });
+          count++;
+        } catch (e) {
+          console.warn('Failed to import transaction row:', item, e);
+        }
+      }
+      await loadUserData();
+      setModal(null);
+      setToast(`${count} transactions imported successfully`);
+    } catch (err: any) {
+      console.error('Failed to import CSV:', err);
+      setToast(`Import failed: ${err?.message || 'Unknown error'}`);
+    }
   };
 
   // While restoring session, show a minimal full-screen spinner
@@ -327,6 +455,10 @@ function App() {
           {page === 'transactions' && (
             <Transactions
               transactions={transactions}
+              categoriesList={categoriesList}
+              loading={loadingTransactions}
+              error={transactionError}
+              onRefresh={loadUserData}
               onAdd={() => setModal('transaction')}
               onUpload={() => setModal('upload')}
               onEdit={setEditingTransaction}
@@ -339,10 +471,7 @@ function App() {
               transactions={transactions}
               budgets={budgets}
               onAdd={() => setModal('budget')}
-              onDelete={id => {
-                setBudgets(current => current.filter(item => item.id !== id));
-                setToast('Budget removed');
-              }}
+              onDelete={deleteBudget}
             />
           )}
           {page === 'savings' && (
@@ -350,21 +479,42 @@ function App() {
               goals={goals}
               onAdd={() => setModal('goal')}
               onContribute={contribute}
-              onDelete={id => {
-                setGoals(current => current.filter(item => item.id !== id));
-                setToast('Goal removed');
-              }}
+              onDelete={deleteGoal}
             />
           )}
           {page === 'assistant' && <Assistant transactions={transactions} budgets={budgets} goals={goals} />}
-          {page === 'settings' && <SettingsPanel theme={theme} setTheme={setTheme} resetDemo={resetDemo} exportData={exportData} setToast={setToast} />}
+          {page === 'settings' && <SettingsPanel theme={theme} setTheme={setTheme} syncData={syncData} exportData={exportData} setToast={setToast} />}
         </main>
       </div>
-      {modal === 'transaction' && <TransactionModal onClose={() => setModal(null)} onSave={addTransaction} />}
-      {modal === 'budget' && <BudgetModal onClose={() => setModal(null)} onSave={addBudget} />}
-      {modal === 'goal' && <GoalModal onClose={() => setModal(null)} onSave={addGoal} />}
+      {modal === 'transaction' && (
+        <TransactionModal
+          categoriesList={categoriesList}
+          onClose={() => setModal(null)}
+          onSave={addTransaction}
+        />
+      )}
+      {modal === 'budget' && (
+        <BudgetModal
+          categoriesList={categoriesList}
+          onClose={() => setModal(null)}
+          onSave={addBudget}
+        />
+      )}
+      {modal === 'goal' && (
+        <GoalModal
+          onClose={() => setModal(null)}
+          onSave={addGoal}
+        />
+      )}
       {modal === 'upload' && <UploadModal onClose={() => setModal(null)} onImport={importTransactions} />}
-      {editingTransaction && <TransactionModal initial={editingTransaction} onClose={() => setEditingTransaction(null)} onSave={saveTransaction} />}
+      {editingTransaction && (
+        <TransactionModal
+          initial={editingTransaction}
+          categoriesList={categoriesList}
+          onClose={() => setEditingTransaction(null)}
+          onSave={saveTransaction}
+        />
+      )}
       {toast && (
         <div className="toast">
           <Check size={17} />
@@ -900,12 +1050,20 @@ function BudgetMini({ transactions, budgets }: { transactions: Transaction[]; bu
 
 function Transactions({
   transactions,
+  categoriesList = [],
+  loading = false,
+  error = null,
+  onRefresh,
   onAdd,
   onUpload,
   onEdit,
   onDelete,
 }: {
   transactions: Transaction[];
+  categoriesList?: ApiCategory[];
+  loading?: boolean;
+  error?: string | null;
+  onRefresh?: () => void;
   onAdd: () => void;
   onUpload: () => void;
   onEdit: (transaction: Transaction) => void;
@@ -916,12 +1074,20 @@ function Transactions({
   const [type, setType] = useState('All');
   const [sortAsc, setSortAsc] = useState(false);
 
+  // Dynamic categories filter list
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>(['All']);
+    categoriesList.forEach((c) => set.add(c.name));
+    categories.forEach((c) => set.add(c));
+    return Array.from(set);
+  }, [categoriesList]);
+
   const filtered = useMemo(
     () =>
       transactions
-        .filter(t => `${t.merchant} ${t.category}`.toLowerCase().includes(query.toLowerCase()))
-        .filter(t => category === 'All' || t.category === category)
-        .filter(t => type === 'All' || t.type === type)
+        .filter((t) => `${t.merchant} ${t.category}`.toLowerCase().includes(query.toLowerCase()))
+        .filter((t) => category === 'All' || t.category === category)
+        .filter((t) => type === 'All' || t.type === type)
         .sort((a, b) => (sortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))),
     [transactions, query, category, type, sortAsc]
   );
@@ -931,9 +1097,14 @@ function Transactions({
       <PageHeader
         eyebrow="Activity"
         title="Transactions"
-        description="Review, categorize, and stay close to every dollar."
+        description="Review, categorize, and stay close to every dollar in your authentic records."
         action={
           <div className="header-actions">
+            {onRefresh && (
+              <Button variant="secondary" onClick={onRefresh} icon={<RefreshCw size={15} />} disabled={loading}>
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            )}
             <Button variant="secondary" onClick={onUpload} icon={<CloudUpload size={16} />}>
               Import CSV
             </Button>
@@ -943,36 +1114,48 @@ function Transactions({
           </div>
         }
       />
+
+      {error && (
+        <div className="form-error" style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>⚠️ {error}</span>
+          {onRefresh && (
+            <button className="retry-link" onClick={onRefresh} style={{ marginLeft: '10px' }}>
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="card table-card">
         <div className="table-toolbar">
           <div className="search-field">
             <Search size={17} />
             <input
               value={query}
-              onChange={event => setQuery(event.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Search transactions..."
               aria-label="Search transactions"
             />
           </div>
           <div className="filter-group">
-            <select value={category} onChange={event => setCategory(event.target.value)} aria-label="Filter by category">
-              {categories.map(item => (
+            <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter by category">
+              {categoryOptions.map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </select>
-            <select value={type} onChange={event => setType(event.target.value)} aria-label="Filter by transaction type">
+            <select value={type} onChange={(event) => setType(event.target.value)} aria-label="Filter by transaction type">
               <option value="All">All types</option>
               <option value="income">Income</option>
               <option value="expense">Expenses</option>
             </select>
-            <button className="icon-button" aria-label="Change sort order" onClick={() => setSortAsc(current => !current)}>
+            <button className="icon-button" aria-label="Change sort order" onClick={() => setSortAsc((current) => !current)}>
               <ListFilter size={17} />
             </button>
           </div>
         </div>
         <div className="table-summary">
           <span>
-            Showing <strong>{filtered.length}</strong> transactions
+            {loading ? 'Loading transactions...' : <>Showing <strong>{filtered.length}</strong> transactions</>}
           </span>
           <span>
             <Filter size={14} /> Filters update instantly
@@ -991,7 +1174,7 @@ function Transactions({
               </tr>
             </thead>
             <tbody>
-              {filtered.map(transaction => (
+              {filtered.map((transaction) => (
                 <tr key={transaction.id}>
                   <td>
                     <div className="table-merchant">
@@ -1033,8 +1216,24 @@ function Transactions({
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && (
-            <EmptyState icon={<Search size={24} />} title="No transactions found" description="Try a different search or clear your filters." />
+
+          {loading && (
+            <div style={{ padding: '35px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>
+              <div className="auth-loading-spinner" style={{ margin: '0 auto 12px', width: '28px', height: '28px' }} />
+              Loading verified transactions...
+            </div>
+          )}
+
+          {!loading && filtered.length === 0 && (
+            <EmptyState
+              icon={<Search size={24} />}
+              title="No transactions found"
+              description={
+                transactions.length === 0
+                  ? "You haven't added any transactions yet. Click 'Add transaction' or 'Import CSV' above to record your first transaction!"
+                  : 'Try a different search query or reset your filters.'
+              }
+            />
           )}
         </div>
       </div>
@@ -1502,103 +1701,208 @@ function Savings({
   );
 }
 
+interface MessageItem {
+  id: string;
+  from: 'ai' | 'user';
+  text: string;
+  error?: boolean;
+  provider?: string;
+  timestamp: string;
+}
+
+function renderInlineFormatted(str: string): ReactNode {
+  const parts: ReactNode[] = [];
+  const regex = /(\*\*.*?\*\*|\*.*?\*)/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(str)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(str.substring(lastIdx, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith('**') && token.endsWith('**')) {
+      parts.push(<strong key={`b-${match.index}`}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('*') && token.endsWith('*')) {
+      parts.push(<em key={`i-${match.index}`}>{token.slice(1, -1)}</em>);
+    }
+    lastIdx = regex.lastIndex;
+  }
+  if (lastIdx < str.length) {
+    parts.push(str.substring(lastIdx));
+  }
+  return parts.length > 0 ? parts : str;
+}
+
+function FormattedMessageText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <div className="message-content">
+      {lines.map((line, lIdx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={lIdx} style={{ height: '5px' }} />;
+        }
+
+        // Bullet point
+        if (trimmed.startsWith('•') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+          const content = trimmed.replace(/^[•\-\*]\s*/, '');
+          return (
+            <div key={lIdx} className="message-bullet-item" style={{ display: 'flex', gap: '6px', margin: '2px 0' }}>
+              <span style={{ opacity: 0.6 }}>•</span>
+              <div>{renderInlineFormatted(content)}</div>
+            </div>
+          );
+        }
+
+        // Numbered list
+        const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+        if (numMatch) {
+          return (
+            <div key={lIdx} className="message-num-item" style={{ display: 'flex', gap: '6px', margin: '2px 0' }}>
+              <span style={{ fontWeight: 600, opacity: 0.8 }}>{numMatch[1]}.</span>
+              <div>{renderInlineFormatted(numMatch[2])}</div>
+            </div>
+          );
+        }
+
+        return <div key={lIdx} style={{ margin: '2px 0' }}>{renderInlineFormatted(trimmed)}</div>;
+      })}
+    </div>
+  );
+}
+
 function Assistant({
-  transactions,
-  budgets,
-  goals,
+  transactions: _transactions,
+  budgets: _budgets,
+  goals: _goals,
 }: {
-  transactions: Transaction[];
+  transactions?: Transaction[];
   budgets?: Budget[];
   goals?: Goal[];
 }) {
+  const { user } = useAuth();
+  const userName = user?.name || 'there';
+  const userInitials = (user?.name || 'U')
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<{ from: 'ai' | 'user'; text: string }[]>([
+  const [loading, setLoading] = useState(false);
+  const [, setErrorMessage] = useState<string | null>(null);
+  const [lastFailedQuestion, setLastFailedQuestion] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const initialWelcome = useMemo(
+    () => `Hi ${userName}! I'm your SpendWise AI assistant. I am connected directly to your authentic transaction records, budgets, and savings goals. Ask me anything about your spending, trends, or budget status!`,
+    [userName]
+  );
+
+  const [messages, setMessages] = useState<MessageItem[]>([
     {
+      id: 'welcome',
       from: 'ai',
-      text: 'Hi Alex. I can help you understand your spending, find patterns, and make a plan from your Spendwise data.',
+      text: initialWelcome,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
 
-  const expenseTransactions = useMemo(() => transactions.filter(t => t.type === 'expense'), [transactions]);
-  const incomeTransactions = useMemo(() => transactions.filter(t => t.type === 'income'), [transactions]);
-  const totalExpense = useMemo(() => expenseTransactions.reduce((s, t) => s + t.amount, 0), [expenseTransactions]);
-  const totalIncome = useMemo(() => incomeTransactions.reduce((s, t) => s + t.amount, 0), [incomeTransactions]);
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
-  const topCategoryData = useMemo(() => {
-    const map = expenseTransactions.reduce<Record<string, number>>((acc, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.amount;
-      return acc;
-    }, {});
-    return Object.entries(map).sort((a, b) => b[1] - a[1])[0];
-  }, [expenseTransactions]);
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading, scrollToBottom]);
 
-  const ask = (value: string) => {
-    if (!value.trim()) return;
-    const lower = value.toLowerCase();
-    let answer = '';
+  const quickQuestions = [
+    'Where did I spend the most?',
+    'How much did I spend this month?',
+    'How much did I save?',
+    'Show my budget status',
+    'Am I spending more than last month?',
+    'Where can I reduce unnecessary spending?',
+  ];
 
-    if (lower.includes('what changed') || (lower.includes('month') && lower.includes('change'))) {
-      const monthSet = Array.from(new Set(transactions.map(t => t.date.slice(0, 7)).filter(Boolean))).sort();
-      if (monthSet.length >= 2) {
-        const curMonth = monthSet[monthSet.length - 1];
-        const prevMonth = monthSet[monthSet.length - 2];
-        const curSpent = transactions.filter(t => t.type === 'expense' && t.date.startsWith(curMonth)).reduce((s, t) => s + t.amount, 0);
-        const prevSpent = transactions.filter(t => t.type === 'expense' && t.date.startsWith(prevMonth)).reduce((s, t) => s + t.amount, 0);
-        const diff = curSpent - prevSpent;
-        const diffPercent = prevSpent > 0 ? Math.round((Math.abs(diff) / prevSpent) * 100) : 0;
-        answer = `Comparing ${monthLabel(curMonth)} (${money(curSpent)}) with ${monthLabel(prevMonth)} (${money(prevSpent)}), spending is ${
-          diff >= 0 ? `up by ${money(diff)} (+${diffPercent}%)` : `down by ${money(Math.abs(diff))} (-${diffPercent}%)`
-        }.`;
-      } else {
-        answer = `In the latest period, your total recorded spending is ${money(totalExpense)} across ${expenseTransactions.length} transactions.`;
-      }
-    } else if (lower.includes('cut back') || lower.includes('save more') || lower.includes('reduce')) {
-      const discretionary = expenseTransactions
-        .filter(t => ['Dining', 'Shopping', 'Entertainment', 'Subscriptions'].includes(t.category))
-        .reduce((s, t) => s + t.amount, 0);
-      answer = `To boost savings, consider reviewing discretionary expenses like Dining, Shopping, and Subscriptions, which totaled ${money(
-        discretionary
-      )}. Trimming 15% would save you approximately ${money(discretionary * 0.15)} monthly.`;
-    } else if (lower.includes('rate') || (lower.includes('explain') && lower.includes('sav'))) {
-      const netSavings = totalIncome - totalExpense;
-      const rate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0;
-      answer = `Your overall savings rate is ${rate}%. You earned ${money(totalIncome)} and spent ${money(
-        totalExpense
-      )}, leaving ${money(netSavings)} saved. Aiming for 20%+ is a standard financial milestone.`;
-    } else if (lower.includes('largest') || lower.includes('top category') || lower.includes('most')) {
-      if (topCategoryData) {
-        const percent = totalExpense > 0 ? Math.round((topCategoryData[1] / totalExpense) * 100) : 0;
-        answer = `Your largest spending category is ${topCategoryData[0]} at ${money(topCategoryData[1])}, accounting for ${percent}% of total expenses.`;
-      } else {
-        answer = 'No expense transactions recorded yet.';
-      }
-    } else if (lower.includes('spend') || lower.includes('expense') || lower.includes('how much')) {
-      answer = `You’ve spent ${money(totalExpense)} across ${expenseTransactions.length} transactions in the current recorded period.`;
-    } else if (lower.includes('budget')) {
-      if (budgets && budgets.length > 0) {
-        const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
-        answer = `You have ${budgets.length} active budgets totaling ${money(totalBudget)}. Track your limits on the Budgets page.`;
-      } else {
-        answer = 'You haven’t set any monthly budgets yet. Head over to Budgets to create your first one.';
-      }
-    } else if (lower.includes('goal')) {
-      if (goals && goals.length > 0) {
-        const totalSaved = goals.reduce((s, g) => s + g.saved, 0);
-        const totalTarget = goals.reduce((s, g) => s + g.target, 0);
-        answer = `You have ${goals.length} savings goals. You’ve saved ${money(totalSaved)} toward a total goal of ${money(totalTarget)}.`;
-      } else {
-        answer = 'No savings goals created yet. You can set one on the Savings Goals tab!';
-      }
-    } else {
-      answer = topCategoryData
-        ? `Based on your recent activity, your top spending is ${topCategoryData[0]} at ${money(topCategoryData[1])}. Total spending is ${money(
-            totalExpense
-          )} against ${money(totalIncome)} in income.`
-        : 'Your financial co-pilot is ready to analyze your spending, transactions, and budgets.';
-    }
+  const ask = async (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || loading) return;
 
-    setMessages(current => [...current, { from: 'user', text: value }, { from: 'ai', text: answer }]);
+    setErrorMessage(null);
+    setLastFailedQuestion(null);
     setQuestion('');
+
+    const userMsg: MessageItem = {
+      id: `user-${Date.now()}`,
+      from: 'user',
+      text: trimmed,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setLoading(true);
+
+    try {
+      // Build conversation history (up to last 6 messages)
+      const historyPayload = messages
+        .filter((m) => !m.error)
+        .slice(-6)
+        .map((m) => ({
+          role: (m.from === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+          content: m.text,
+        }));
+
+      const res = await ApiService.chatWithAI(trimmed, historyPayload);
+      const answer = res?.message || res?.data?.message || 'I could not generate an analysis at this moment.';
+      const provider = res?.metadata?.provider || res?.data?.metadata?.provider;
+
+      const aiMsg: MessageItem = {
+        id: `ai-${Date.now()}`,
+        from: 'ai',
+        text: answer,
+        provider,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (err: any) {
+      console.error('AI chat error:', err);
+      const friendlyError = err?.message?.includes('429')
+        ? 'Too many requests. Please wait a moment before asking again.'
+        : err?.message?.includes('401')
+        ? 'Session expired. Please log in again to access the AI assistant.'
+        : 'Unable to analyze finances at this moment. Please try again.';
+
+      setErrorMessage(friendlyError);
+      setLastFailedQuestion(trimmed);
+
+      const errAiMsg: MessageItem = {
+        id: `err-${Date.now()}`,
+        from: 'ai',
+        text: friendlyError,
+        error: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, errAiMsg]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearChat = () => {
+    setMessages([
+      {
+        id: `welcome-${Date.now()}`,
+        from: 'ai',
+        text: `Chat cleared. Hi ${userName}! How can I help you with your finances today?`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+    setErrorMessage(null);
+    setLastFailedQuestion(null);
   };
 
   return (
@@ -1606,7 +1910,7 @@ function Assistant({
       <PageHeader
         eyebrow="Your financial co-pilot"
         title="AI assistant"
-        description="Ask questions about your money. Answers are based on your local Spendwise data."
+        description="Ask questions about your money. Answers are calculated from your authentic SpendWise data."
       />
       <div className="assistant-layout">
         <div className="card chat-card">
@@ -1615,30 +1919,86 @@ function Assistant({
               <Sparkles size={18} />
             </span>
             <div>
-              <strong>Spendwise assistant</strong>
+              <strong>Spendwise AI Assistant</strong>
               <span>
                 <i className="online-dot" />
-                Ready to help
+                Connected to your real financial data
               </span>
             </div>
-            <button className="icon-button" aria-label="Assistant settings">
-              <MoreHorizontal size={18} />
+            <button
+              className="chat-clear-btn"
+              onClick={handleClearChat}
+              title="Clear conversation history"
+              aria-label="Clear chat"
+            >
+              <RefreshCw size={13} />
+              <span>Clear</span>
             </button>
           </div>
           <div className="chat-messages">
-            {messages.map((message, index) => (
-              <div className={`message ${message.from}`} key={`${message.from}-${index}`}>
-                <span className="message-avatar">{message.from === 'ai' ? <Sparkles size={14} /> : 'AM'}</span>
-                <div>{message.text}</div>
+            {messages.map((message) => (
+              <div
+                className={`message ${message.from}${message.error ? ' error-message' : ''}`}
+                key={message.id}
+              >
+                <span className="message-avatar">
+                  {message.from === 'ai' ? <Sparkles size={14} /> : userInitials}
+                </span>
+                <div>
+                  <FormattedMessageText text={message.text} />
+                  {message.error && lastFailedQuestion && (
+                    <div style={{ marginTop: '8px' }}>
+                      <button
+                        className="retry-link"
+                        onClick={() => ask(lastFailedQuestion)}
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                  <div className="message-footer">
+                    <span>{message.timestamp}</span>
+                    {message.from === 'ai' && !message.error && (
+                      <span className="ai-badge">
+                        <Sparkles size={10} /> SpendWise AI
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
+
+            {loading && (
+              <div className="message ai">
+                <span className="message-avatar">
+                  <Sparkles size={14} />
+                </span>
+                <div className="typing-bubble">
+                  <div className="typing-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <span>Analyzing your finances...</span>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
+
           <div className="suggestions">
-            <span>Try asking</span>
-            <button onClick={() => ask('How much did I spend?')}>How much did I spend?</button>
-            <button onClick={() => ask('What is my largest category?')}>Largest category?</button>
-            <button onClick={() => ask('How can I save more?')}>How can I save more?</button>
+            <span>Quick questions</span>
+            {quickQuestions.map((q) => (
+              <button
+                key={q}
+                onClick={() => ask(q)}
+                disabled={loading}
+              >
+                {q}
+              </button>
+            ))}
           </div>
+
           <form
             className="chat-input"
             onSubmit={(event: FormEvent) => {
@@ -1648,41 +2008,53 @@ function Assistant({
           >
             <input
               value={question}
-              onChange={event => setQuestion(event.target.value)}
-              placeholder="Ask anything about your finances..."
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setQuestion(event.target.value)}
+              placeholder="Ask anything about your finances (e.g. How much did I spend on food?)..."
               aria-label="Ask Spendwise assistant"
+              disabled={loading}
             />
-            <button aria-label="Send question" type="submit">
+            <button aria-label="Send question" type="submit" disabled={loading || !question.trim()}>
               <ArrowUpRight size={18} />
             </button>
           </form>
-          <p className="disclaimer">Spendwise provides educational insights, not professional financial advice.</p>
+          <p className="disclaimer">SpendWise AI provides educational insights and data summaries based on your authenticated financial records.</p>
         </div>
+
         <div className="assistant-side">
           <div className="card">
             <CardHeading title="Suggested prompts" subtitle="Get a clearer picture" />
             <div className="prompt-list">
-              <button onClick={() => ask('What changed this month?')}>
+              <button onClick={() => ask('What changed this month?')} disabled={loading}>
                 <TrendingUp size={17} />
                 What changed this month?
                 <ChevronRight size={15} />
               </button>
-              <button onClick={() => ask('Where can I cut back?')}>
+              <button onClick={() => ask('Where can I reduce unnecessary spending?')} disabled={loading}>
                 <Lightbulb size={17} />
                 Where can I cut back?
                 <ChevronRight size={15} />
               </button>
-              <button onClick={() => ask('Explain my savings rate')}>
+              <button onClick={() => ask('How much did I save this month?')} disabled={loading}>
                 <Target size={17} />
                 Explain my savings rate
+                <ChevronRight size={15} />
+              </button>
+              <button onClick={() => ask('What are my biggest expenses?')} disabled={loading}>
+                <CreditCard size={17} />
+                Biggest expenses
+                <ChevronRight size={15} />
+              </button>
+              <button onClick={() => ask('How close am I to my savings goals?')} disabled={loading}>
+                <CircleDollarSign size={17} />
+                Savings goal progress
                 <ChevronRight size={15} />
               </button>
             </div>
           </div>
           <div className="card ai-trust">
             <ShieldCheck size={20} />
-            <strong>Private by design</strong>
-            <p>Your demo data stays in this browser. No financial information is sent anywhere.</p>
+            <strong>Authenticated & Secure</strong>
+            <p>Your financial assistant communicates directly with your authenticated backend. Only you can view insights generated from your private transaction and budget data.</p>
           </div>
         </div>
       </div>
@@ -1693,13 +2065,13 @@ function Assistant({
 function SettingsPanel({
   theme,
   setTheme,
-  resetDemo,
+  syncData,
   exportData,
   setToast,
 }: {
   theme: ThemePreference;
   setTheme: (theme: ThemePreference) => void;
-  resetDemo: () => void;
+  syncData: () => Promise<void>;
   exportData: () => void;
   setToast: (message: string) => void;
 }) {
@@ -1707,6 +2079,7 @@ function SettingsPanel({
   const { user } = useAuth();
   const [fullName, setFullName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
+  const [syncing, setSyncing] = useState(false);
 
   return (
     <>
@@ -1788,15 +2161,27 @@ function SettingsPanel({
           {(activeTab === 'general' || activeTab === 'data') && (
             <section className="settings-section data-section">
               <div>
-                <h2>Demo data</h2>
-                <p>Everything is stored locally while the backend is being connected.</p>
+                <h2>Data management</h2>
+                <p>Your workspace financial data is securely synchronized with your PostgreSQL database.</p>
               </div>
               <div className="data-actions">
                 <Button variant="secondary" onClick={exportData} icon={<Download size={16} />}>
-                  Export data
+                  Export data (JSON)
                 </Button>
-                <Button variant="ghost" onClick={resetDemo} icon={<RefreshCw size={16} />}>
-                  Reset demo data
+                <Button
+                  variant="ghost"
+                  disabled={syncing}
+                  onClick={async () => {
+                    setSyncing(true);
+                    try {
+                      await syncData();
+                    } finally {
+                      setSyncing(false);
+                    }
+                  }}
+                  icon={<RefreshCw size={16} />}
+                >
+                  {syncing ? 'Syncing...' : 'Sync with server'}
                 </Button>
               </div>
             </section>
@@ -1851,12 +2236,14 @@ function FormField({ label, children }: { label: string; children: ReactNode }) 
 
 function TransactionModal({
   initial,
+  categoriesList = [],
   onClose,
   onSave,
 }: {
   initial?: Transaction;
+  categoriesList?: ApiCategory[];
   onClose: () => void;
-  onSave: (transaction: Transaction) => void;
+  onSave: (transaction: Transaction) => Promise<void> | void;
 }) {
   const [form, setForm] = useState<Transaction>(
     initial || {
@@ -1866,15 +2253,30 @@ function TransactionModal({
       date: new Date().toISOString().slice(0, 10),
       amount: 0,
       type: 'expense',
-      account: 'Visa •••• 4421',
+      account: 'Checking',
     }
   );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Extract distinct category options from categoriesList or fallback
+  const availableCategories = useMemo(() => {
+    if (categoriesList.length > 0) {
+      const filtered = categoriesList.filter((c) =>
+        form.type === 'income' ? c.type === 'INCOME' : c.type === 'EXPENSE'
+      );
+      if (filtered.length > 0) return filtered.map((c) => c.name);
+    }
+    return form.type === 'income'
+      ? ['Income']
+      : ['Dining', 'Groceries', 'Housing', 'Transport', 'Subscriptions', 'Shopping', 'Health', 'Education', 'Entertainment'];
+  }, [categoriesList, form.type]);
 
   const update = (key: keyof Transaction, value: string | number) => {
-    setForm(current => {
+    setForm((current) => {
       const updated = { ...current, [key]: value };
       if (key === 'type') {
-        if (value === 'income' && updated.category !== 'Income') {
+        if (value === 'income') {
           updated.category = 'Income';
         } else if (value === 'expense' && updated.category === 'Income') {
           updated.category = 'Dining';
@@ -1884,17 +2286,45 @@ function TransactionModal({
     });
   };
 
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const numAmount = Math.abs(Number(form.amount));
+    if (!form.merchant.trim()) {
+      setError('Merchant name or description is required.');
+      return;
+    }
+    if (!numAmount || numAmount <= 0) {
+      setError('Amount must be greater than 0.');
+      return;
+    }
+    if (!form.date) {
+      setError('Date is required.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ ...form, merchant: form.merchant.trim(), amount: numAmount });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save transaction.');
+      setSaving(false);
+    }
+  };
+
   return (
     <Modal title={initial ? 'Edit transaction' : 'Add transaction'} description="Keep your activity accurate and up to date." onClose={onClose}>
-      <form
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          onSave({ ...form, amount: Math.abs(Number(form.amount)) });
-        }}
-      >
+      <form onSubmit={handleSubmit}>
+        {error && <div className="form-error" style={{ marginBottom: '14px' }}>{error}</div>}
         <div className="form-grid">
-          <FormField label="Merchant">
-            <input required value={form.merchant} onChange={event => update('merchant', event.target.value)} placeholder="e.g. Whole Foods Market" />
+          <FormField label="Merchant / Description">
+            <input
+              required
+              value={form.merchant}
+              onChange={(event) => update('merchant', event.target.value)}
+              placeholder="e.g. Whole Foods Market"
+              disabled={saving}
+            />
           </FormField>
           <FormField label="Amount">
             <input
@@ -1903,117 +2333,207 @@ function TransactionModal({
               min="0.01"
               step="0.01"
               value={form.amount || ''}
-              onChange={event => update('amount', event.target.value)}
+              onChange={(event) => update('amount', event.target.value)}
               placeholder="0.00"
+              disabled={saving}
             />
           </FormField>
-          <FormField label="Category">
-            <select value={form.category} onChange={event => update('category', event.target.value)}>
-              {categories.slice(1).map(item => (
-                <option key={item}>{item}</option>
-              ))}
-              <option>Income</option>
-            </select>
-          </FormField>
           <FormField label="Type">
-            <select value={form.type} onChange={event => update('type', event.target.value as 'income' | 'expense')}>
+            <select value={form.type} onChange={(event) => update('type', event.target.value as 'income' | 'expense')} disabled={saving}>
               <option value="expense">Expense</option>
               <option value="income">Income</option>
             </select>
           </FormField>
+          <FormField label="Category">
+            <select value={form.category} onChange={(event) => update('category', event.target.value)} disabled={saving}>
+              {availableCategories.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+          </FormField>
           <FormField label="Date">
-            <input required type="date" value={form.date} onChange={event => update('date', event.target.value)} />
+            <input required type="date" value={form.date} onChange={(event) => update('date', event.target.value)} disabled={saving} />
           </FormField>
           <FormField label="Account">
-            <select value={form.account} onChange={event => update('account', event.target.value)}>
-              <option>Visa •••• 4421</option>
+            <select value={form.account} onChange={(event) => update('account', event.target.value)} disabled={saving}>
               <option>Checking</option>
+              <option>Visa •••• 4421</option>
               <option>Savings</option>
             </select>
           </FormField>
         </div>
         <div className="modal-actions">
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit">{initial ? 'Save changes' : 'Add transaction'}</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? 'Saving...' : initial ? 'Save changes' : 'Add transaction'}
+          </Button>
         </div>
       </form>
     </Modal>
   );
 }
 
-function BudgetModal({ onClose, onSave }: { onClose: () => void; onSave: (budget: Budget) => void }) {
+function BudgetModal({
+  categoriesList = [],
+  onClose,
+  onSave,
+}: {
+  categoriesList?: ApiCategory[];
+  onClose: () => void;
+  onSave: (budget: Budget) => Promise<void> | void;
+}) {
   const [category, setCategory] = useState('Dining');
   const [limit, setLimit] = useState('300');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const availableCategories = useMemo(() => {
+    if (categoriesList.length > 0) {
+      const expenseCats = categoriesList.filter((c) => c.type === 'EXPENSE').map((c) => c.name);
+      if (expenseCats.length > 0) return expenseCats;
+    }
+    return ['Housing', 'Groceries', 'Dining', 'Transport', 'Subscriptions', 'Shopping', 'Health', 'Education', 'Entertainment'];
+  }, [categoriesList]);
+
+  useEffect(() => {
+    if (availableCategories.length > 0 && !availableCategories.includes(category)) {
+      setCategory(availableCategories[0]);
+    }
+  }, [availableCategories, category]);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const numLimit = Math.max(1, Number(limit));
+    if (!numLimit || isNaN(numLimit)) {
+      setError('Please enter a valid limit amount.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ id: `b-${Date.now()}`, category, limit: numLimit });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create budget.');
+      setSaving(false);
+    }
+  };
 
   return (
     <Modal title="Create a budget" description="Set a monthly limit for a spending category." onClose={onClose}>
-      <form
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          onSave({ id: `b-${Date.now()}`, category, limit: Math.max(1, Number(limit)) });
-        }}
-      >
+      <form onSubmit={handleSubmit}>
+        {error && <div className="form-error" style={{ marginBottom: '14px' }}>{error}</div>}
         <div className="form-grid">
           <FormField label="Category">
-            <select value={category} onChange={event => setCategory(event.target.value)}>
-              {categories.slice(1).map(item => (
-                <option key={item}>{item}</option>
+            <select value={category} onChange={(event) => setCategory(event.target.value)} disabled={saving}>
+              {availableCategories.map((item) => (
+                <option key={item} value={item}>{item}</option>
               ))}
             </select>
           </FormField>
           <FormField label="Monthly limit">
-            <input type="number" min="1" step="1" required value={limit} onChange={event => setLimit(event.target.value)} />
+            <input
+              type="number"
+              min="1"
+              step="1"
+              required
+              value={limit}
+              onChange={(event) => setLimit(event.target.value)}
+              disabled={saving}
+            />
           </FormField>
         </div>
         <div className="modal-actions">
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit">Create budget</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? 'Creating...' : 'Create budget'}
+          </Button>
         </div>
       </form>
     </Modal>
   );
 }
 
-function GoalModal({ onClose, onSave }: { onClose: () => void; onSave: (goal: Goal) => void }) {
+function GoalModal({ onClose, onSave }: { onClose: () => void; onSave: (goal: Goal) => Promise<void> | void }) {
   const [name, setName] = useState('');
   const [target, setTarget] = useState('1000');
   const [date, setDate] = useState('2026-12-31');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) {
+      setError('Goal name is required.');
+      return;
+    }
+    const numTarget = Math.max(1, Number(target));
+    if (!numTarget || isNaN(numTarget)) {
+      setError('Please enter a valid target amount.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({
+        id: `g-${Date.now()}`,
+        name: name.trim(),
+        target: numTarget,
+        saved: 0,
+        date,
+        color: '#22a06b',
+      });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create goal.');
+      setSaving(false);
+    }
+  };
 
   return (
     <Modal title="New savings goal" description="Give a name to something worth saving for." onClose={onClose}>
-      <form
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          onSave({
-            id: `g-${Date.now()}`,
-            name: name.trim(),
-            target: Math.max(1, Number(target)),
-            saved: 0,
-            date,
-            color: '#22a06b',
-          });
-        }}
-      >
+      <form onSubmit={handleSubmit}>
+        {error && <div className="form-error" style={{ marginBottom: '14px' }}>{error}</div>}
         <FormField label="Goal name">
-          <input required value={name} onChange={event => setName(event.target.value)} placeholder="e.g. New laptop" />
+          <input
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. New laptop"
+            disabled={saving}
+          />
         </FormField>
         <div className="form-grid">
           <FormField label="Target amount">
-            <input type="number" min="1" step="1" required value={target} onChange={event => setTarget(event.target.value)} />
+            <input
+              type="number"
+              min="1"
+              step="1"
+              required
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+              disabled={saving}
+            />
           </FormField>
           <FormField label="Target date">
-            <input type="date" required value={date} onChange={event => setDate(event.target.value)} />
+            <input
+              type="date"
+              required
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              disabled={saving}
+            />
           </FormField>
         </div>
         <div className="modal-actions">
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit">Create goal</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? 'Creating...' : 'Create goal'}
+          </Button>
         </div>
       </form>
     </Modal>
