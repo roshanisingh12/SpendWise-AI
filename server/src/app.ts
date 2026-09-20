@@ -23,7 +23,20 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (
+        origin === env.CLIENT_URL ||
+        (env.NODE_ENV === 'development' &&
+          (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')))
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error('CORS request blocked by security policy'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
