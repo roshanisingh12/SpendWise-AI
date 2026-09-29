@@ -69,6 +69,13 @@ export interface FinancialContext {
     isCompleted: boolean;
   }>;
   totalSavedInGoals: number;
+  categoryIncreases: Array<{
+    name: string;
+    currentAmount: number;
+    prevAmount: number;
+    diff: number;
+    diffPercent: number;
+  }>;
   matchedSpecificCategory?: {
     name: string;
     amount: number;
@@ -203,6 +210,17 @@ export async function getUserFinancialContext(
     orderBy: { _sum: { amount: 'desc' } },
   });
 
+  // Previous month category spending
+  const prevCategorySpending = await prisma.transaction.groupBy({
+    by: ['categoryId'],
+    where: {
+      userId,
+      type: 'EXPENSE',
+      date: { gte: startOfPrevMonth, lte: endOfPrevMonth },
+    },
+    _sum: { amount: true },
+  });
+
   const catMap = new Map(rawCategories.map((c) => [c.id, c.name]));
   const effectiveCategoryTotal = categorySpending.reduce((sum, g) => sum + toNum(g._sum.amount), 0);
 
@@ -216,6 +234,35 @@ export async function getUserFinancialContext(
       count: g._count,
     };
   });
+
+  // Map previous month spending
+  const prevCatMap = new Map<string, number>();
+  for (const item of prevCategorySpending) {
+    const name = item.categoryId ? catMap.get(item.categoryId) || 'Uncategorized' : 'Uncategorized';
+    prevCatMap.set(name, toNum(item._sum.amount));
+  }
+
+  // Calculate category increases
+  const allCategoryNames = new Set([
+    ...topCategories.map((c) => c.name),
+    ...Array.from(prevCatMap.keys()),
+  ]);
+
+  const categoryIncreases: FinancialContext['categoryIncreases'] = [];
+  for (const catName of allCategoryNames) {
+    const curAmt = topCategories.find((c) => c.name === catName)?.amount || 0;
+    const prevAmt = prevCatMap.get(catName) || 0;
+    const diff = curAmt - prevAmt;
+    const diffPercent = prevAmt > 0 ? Math.round((Math.abs(diff) / prevAmt) * 100) : curAmt > 0 ? 100 : 0;
+    categoryIncreases.push({
+      name: catName,
+      currentAmount: curAmt,
+      prevAmount: prevAmt,
+      diff,
+      diffPercent,
+    });
+  }
+  categoryIncreases.sort((a, b) => b.diff - a.diff);
 
   // Calculate actual budget spending
   const budgets = await Promise.all(
@@ -354,16 +401,23 @@ export async function getUserFinancialContext(
     budgets,
     savingsGoals,
     totalSavedInGoals,
+    categoryIncreases,
     matchedSpecificCategory,
   };
 }
 
 export function formatFinancialContextForPrompt(ctx: FinancialContext): string {
-  const { currentPeriod, previousPeriod, last7Days, topCategories, largestExpenses, budgets, savingsGoals, totalSavedInGoals, matchedSpecificCategory } = ctx;
+  const { currentPeriod, previousPeriod, last7Days, topCategories, largestExpenses, budgets, savingsGoals, totalSavedInGoals, categoryIncreases, matchedSpecificCategory } = ctx;
 
   const topCatsStr = topCategories.length > 0
     ? topCategories.map((c) => `- ${c.name}: $${c.amount.toLocaleString()} (${c.percentage}% of spending, ${c.count} transactions)`).join('\n')
     : 'No expenses recorded in categories yet.';
+
+  const categoryDiffStr = categoryIncreases.length > 0
+    ? categoryIncreases
+        .map((c) => `- ${c.name}: Current $${c.currentAmount.toLocaleString()} vs Prev $${c.prevAmount.toLocaleString()} (${c.diff >= 0 ? `+$${c.diff.toLocaleString()}` : `-$${Math.abs(c.diff).toLocaleString()}`})`)
+        .join('\n')
+    : 'No category comparison data available.';
 
   const largestExpStr = largestExpenses.length > 0
     ? largestExpenses.map((e) => `- $${e.amount.toLocaleString()} on "${e.description}" (${e.category}) on ${e.date}`).join('\n')
@@ -399,6 +453,9 @@ PREVIOUS PERIOD COMPARISON (${previousPeriod.monthName} ${previousPeriod.year}):
 - Previous Month Expenses: $${previousPeriod.totalExpenses.toLocaleString()}
 - Previous Month Income: $${previousPeriod.totalIncome.toLocaleString()}
 - Expense Change: ${previousPeriod.expenseDiff >= 0 ? `+$${previousPeriod.expenseDiff.toLocaleString()} (+${previousPeriod.expenseDiffPercent}%)` : `-$${Math.abs(previousPeriod.expenseDiff).toLocaleString()} (-${previousPeriod.expenseDiffPercent}%)`}
+
+CATEGORY MONTH-OVER-MONTH CHANGES:
+${categoryDiffStr}
 
 LAST 7 DAYS:
 - Spending: $${last7Days.totalExpenses.toLocaleString()} across ${last7Days.transactionCount} transactions

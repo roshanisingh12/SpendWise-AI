@@ -41,9 +41,35 @@ function generateDeterministicFinancialResponse(
   const money = (val: number) => `$${Math.round(val).toLocaleString()}`;
   const precise = (val: number) => `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  // 1. Specific Category Spending (e.g. Food, Groceries, Dining, Transport)
+  // 1. Category increase comparison: Which categories increased compared with last month?
+  if (lower.includes('categor') && (lower.includes('increase') || lower.includes('went up') || lower.includes('rose') || lower.includes('higher') || lower.includes('grow') || lower.includes('compared'))) {
+    const increases = context.categoryIncreases.filter((c) => c.diff > 0);
+    if (increases.length > 0) {
+      const incList = increases
+        .map((c) => `• **${c.name}**: +${money(c.diff)} (+${c.diffPercent}%) — ${money(c.currentAmount)} this month vs ${money(c.prevAmount)} last month`)
+        .join('\n');
+      return `📈 **Category Spending Increases (vs Last Month):**\n\n${incList}\n\n` +
+        `💡 *Recommendation: Prioritize reviewing your spending in **${increases[0].name}**, which had the largest monetary jump.*`;
+    }
+    return `🎉 Good news! None of your spending categories increased compared to **${previousPeriod.monthName}**. All categories were either lower or unchanged.`;
+  }
+
+  // 2. Specific Category Spending (e.g. Food, Groceries, Dining, Transport)
   if (matchedSpecificCategory || lower.includes('food') || lower.includes('grocery') || lower.includes('dining') || lower.includes('transport') || lower.includes('shopping')) {
     if (matchedSpecificCategory) {
+      const isWeekQuery = lower.includes('week') || lower.includes('last 7 days') || lower.includes('past 7 days');
+      if (isWeekQuery) {
+        const weekCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const weekTxs = matchedSpecificCategory.transactions.filter((t) => t.date >= weekCutoff);
+        const weekSum = weekTxs.reduce((s, t) => s + t.amount, 0);
+        const txLines = weekTxs.length > 0
+          ? `\n\n**Transactions in the last 7 days:**\n` +
+            weekTxs.map((t) => `• ${t.date}: **${t.description}** — ${precise(t.amount)}`).join('\n')
+          : '\n\n*No transactions recorded for this category in the last 7 days.*';
+
+        return `Over the last 7 days, you spent **${money(weekSum)}** on **${matchedSpecificCategory.name}** across **${weekTxs.length}** transaction(s).${txLines}`;
+      }
+
       const txLines = matchedSpecificCategory.transactions.length > 0
         ? `\n\n**Recent ${matchedSpecificCategory.name} Transactions:**\n` +
           matchedSpecificCategory.transactions.map((t) => `• ${t.date}: **${t.description}** — ${precise(t.amount)}`).join('\n')
@@ -54,7 +80,7 @@ function generateDeterministicFinancialResponse(
     }
   }
 
-  // 2. What did I spend the most on? / Largest category
+  // 3. What did I spend the most on? / Largest category
   if (lower.includes('spend the most') || lower.includes('largest category') || lower.includes('top category') || lower.includes('most of my money') || lower.includes('where did i spend')) {
     if (topCategories.length > 0) {
       const top = topCategories[0];
@@ -66,7 +92,7 @@ function generateDeterministicFinancialResponse(
     return `You have not recorded any category expenses for **${currentPeriod.monthName} ${currentPeriod.year}** yet.`;
   }
 
-  // 3. Biggest / Largest Expenses
+  // 4. Biggest / Largest Expenses
   if (lower.includes('biggest expense') || lower.includes('largest expense') || lower.includes('biggest transactions')) {
     if (largestExpenses.length > 0) {
       const list = largestExpenses.map((e, idx) => `${idx + 1}. **${e.description}** (${e.category}): ${money(e.amount)} on *${e.date}*`).join('\n');
@@ -76,13 +102,13 @@ function generateDeterministicFinancialResponse(
     return `No expense transactions were found in your transaction history.`;
   }
 
-  // 4. How much did I spend this week / last 7 days?
+  // 5. How much did I spend this week / last 7 days?
   if (lower.includes('this week') || lower.includes('past week') || lower.includes('last 7 days')) {
     return `Over the last 7 days, you have spent a total of **${money(last7Days.totalExpenses)}** across **${last7Days.transactionCount}** transaction(s).\n\n` +
       `Your total spending for the full month of **${currentPeriod.monthName}** stands at **${money(currentPeriod.totalExpenses)}**.`;
   }
 
-  // 5. Month over month comparison: Am I spending more than last month? / What changed?
+  // 6. Month over month comparison: Am I spending more than last month? / What changed?
   if (lower.includes('last month') || lower.includes('spending more') || lower.includes('what changed') || lower.includes('compare')) {
     const diff = previousPeriod.expenseDiff;
     const pct = previousPeriod.expenseDiffPercent;
@@ -106,8 +132,8 @@ function generateDeterministicFinancialResponse(
     }
   }
 
-  // 6. Budgets status: How much is left in my budget?
-  if (lower.includes('budget')) {
+  // 7. Budgets status / How much money remains within my budget?
+  if (lower.includes('budget') || lower.includes('remain') || lower.includes('how much is left') || lower.includes('left in my budget')) {
     if (budgets.length === 0) {
       return `You don't have any active budgets set up yet. Head over to the **Budgets** section to create monthly limits for your categories!`;
     }
@@ -125,10 +151,10 @@ function generateDeterministicFinancialResponse(
     const totalRem = totalLimit - totalSpent;
 
     return `Here is your current budget status:\n\n${budgetLines}\n\n` +
-      `**Overall Budget:** Spent **${money(totalSpent)}** of **${money(totalLimit)}** (${totalRem >= 0 ? `${money(totalRem)} left` : `Over by ${money(Math.abs(totalRem))}`}).`;
+      `**Overall Budget:** Spent **${money(totalSpent)}** of **${money(totalLimit)}** (${totalRem >= 0 ? `${money(totalRem)} remains available` : `Exceeded by ${money(Math.abs(totalRem))}`}).`;
   }
 
-  // 7. Savings Goals: How close am I to my savings goal? / How much did I save?
+  // 8. Savings Goals: How close am I to my savings goal? / How much did I save?
   if (lower.includes('goal') || lower.includes('save') || lower.includes('savings rate')) {
     if (savingsGoals.length > 0) {
       const goalLines = savingsGoals.map((g) => {
@@ -145,8 +171,8 @@ function generateDeterministicFinancialResponse(
     return `You haven't set any specific savings goals yet, but this month you have earned **${money(currentPeriod.totalIncome)}** and spent **${money(currentPeriod.totalExpenses)}**, giving you a net savings of **${money(currentPeriod.balance)}** (Savings Rate: **${currentPeriod.savingsRate}%**).`;
   }
 
-  // 8. Reduce spending / Cut back
-  if (lower.includes('reduce') || lower.includes('cut back') || lower.includes('unnecessary') || lower.includes('save more')) {
+  // 9. Reduce spending / Practical changes to save more next month
+  if (lower.includes('reduce') || lower.includes('cut back') || lower.includes('unnecessary') || lower.includes('save more') || lower.includes('practical changes') || lower.includes('help me save')) {
     const discretionaryCategories = ['Dining', 'Shopping', 'Entertainment', 'Subscriptions'];
     const discretionarySpending = topCategories
       .filter((c) => discretionaryCategories.includes(c.name))
@@ -157,16 +183,21 @@ function generateDeterministicFinancialResponse(
       .map((c) => `• **${c.name}**: ${money(c.amount)} (${c.percentage}% of spending)`)
       .join('\n');
 
-    return `💡 **Discretionary Spending Review:**\n\n` +
-      (discretionaryList ? `Here are your non-essential spending areas this month:\n${discretionaryList}\n\n` : '') +
-      `Total discretionary spending: **${money(discretionarySpending)}**.\n\n` +
-      `**Opportunities to save:**\n` +
-      `1. Trimming 15% from discretionary expenses would keep approximately **${money(discretionarySpending * 0.15)}** in your pocket each month.\n` +
-      `2. Audit recurring subscriptions to remove unused services.\n` +
-      `3. Set strict category limits in the **Budgets** section.`;
+    const overBudgetList = budgets
+      .filter((b) => b.isOverBudget || b.percentage >= 80)
+      .map((b) => `• **${b.categoryName}**: Spent ${money(b.actualSpent)} (Budget: ${money(b.budgetAmount)})`);
+
+    return `💡 **Practical Changes to Save More Next Month:**\n\n` +
+      (discretionaryList ? `**Your Discretionary Spending Areas:**\n${discretionaryList}\n*(Total non-essential: ${money(discretionarySpending)})*\n\n` : '') +
+      (overBudgetList.length > 0 ? `**Categories Approaching or Exceeding Limits:**\n${overBudgetList.join('\n')}\n\n` : '') +
+      `**Actionable Next Steps:**\n` +
+      `1. **Trim 15% from Discretionary Spending**: This would free up **${money(discretionarySpending * 0.15)}** directly into your savings.\n` +
+      `2. **Establish Category Budget Caps**: Set monthly limits for high-frequency expenses in the **Budgets** tab.\n` +
+      `3. **Automate Savings Contributions**: Allocate a portion of your income immediately when received toward your **Savings Goals**.\n` +
+      `4. **Audit Recurring Subscriptions**: Review active subscriptions and cancel unused or duplicate services.`;
   }
 
-  // 9. General Financial Summary (Default)
+  // 10. General Financial Summary (Default)
   return `📊 **Financial Summary for ${currentPeriod.monthName} ${currentPeriod.year}** for **${context.user.name}**:\n\n` +
     `• **Total Income:** ${money(currentPeriod.totalIncome)}\n` +
     `• **Total Expenses:** ${money(currentPeriod.totalExpenses)}\n` +
@@ -174,7 +205,7 @@ function generateDeterministicFinancialResponse(
     `• **Savings Rate:** ${currentPeriod.savingsRate}%\n` +
     `• **Total Recorded Transactions:** ${currentPeriod.transactionCount}\n\n` +
     (topCategories.length > 0 ? `**Top Expense:** ${topCategories[0].name} (${money(topCategories[0].amount)}, ${topCategories[0].percentage}%)\n\n` : '') +
-    `You can ask me specific questions like *"How much did I spend on Food?"*, *"Am I spending more than last month?"*, or *"Show my budget status"*!`;
+    `You can ask me specific questions like *"Where did I spend the most?"*, *"Which categories increased compared with last month?"*, *"How much remains in my budget?"*, or *"What practical changes could help me save more?"*`;
 }
 
 /**

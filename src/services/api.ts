@@ -82,10 +82,11 @@ export class ApiService {
     return data.data || data;
   }
 
-  // --- Auth ---
+  // --- Auth & User Profile ---
   static login(credentials: Record<string, unknown>) { return this.request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }); }
   static register(userData: Record<string, unknown>) { return this.request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }); }
   static getMe() { return this.request('/auth/me'); }
+  static updateProfile(data: { name?: string; email?: string }) { return this.request('/users/me', { method: 'PATCH', body: JSON.stringify(data) }); }
   static logout() { return this.request('/auth/logout', { method: 'POST' }); }
 
   // --- Categories ---

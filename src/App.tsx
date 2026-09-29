@@ -59,7 +59,67 @@ type Goal = { id: string; name: string; target: number; saved: number; date: str
 
 type IconType = typeof LayoutDashboard;
 
-const categoryColors: Record<string, string> = { Housing: '#5078e5', Groceries: '#22a06b', Dining: '#f59e0b', Transport: '#a855f7', Subscriptions: '#ef6b73', Shopping: '#ef8354', Health: '#10b8b0', Education: '#64748b', Entertainment: '#e879f9', Income: '#22a06b' };
+const categoryColorPalette = [
+  '#5078e5', '#22a06b', '#f59e0b', '#a855f7', '#ef6b73',
+  '#ef8354', '#10b8b0', '#64748b', '#e879f9', '#3b82f6',
+  '#06b6d4', '#84cc16', '#f43f5e', '#8b5cf6', '#14b8a6'
+];
+
+const categoryColors: Record<string, string> = {
+  Housing: '#5078e5',
+  Groceries: '#22a06b',
+  Dining: '#f59e0b',
+  Transport: '#a855f7',
+  Subscriptions: '#ef6b73',
+  Shopping: '#ef8354',
+  Health: '#10b8b0',
+  Education: '#64748b',
+  Entertainment: '#e879f9',
+  Income: '#22a06b',
+  Salary: '#22a06b',
+  Investment: '#3b82f6',
+  Utilities: '#06b6d4',
+  Travel: '#8b5cf6',
+};
+
+const getCategoryColor = (name: string, customColor?: string | null): string => {
+  if (customColor) return customColor;
+  if (categoryColors[name]) return categoryColors[name];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % categoryColorPalette.length;
+  return categoryColorPalette[index];
+};
+
+const predictCategoryFromMerchant = (merchant: string, type: 'income' | 'expense' = 'expense'): string => {
+  const m = merchant.toLowerCase().trim();
+  if (type === 'income') return 'Income';
+  if (m.includes('uber') || m.includes('lyft') || m.includes('gas') || m.includes('fuel') || m.includes('shell') || m.includes('chevron') || m.includes('metro') || m.includes('transit') || m.includes('parking')) return 'Transport';
+  if (m.includes('grocery') || m.includes('market') || m.includes('trader joe') || m.includes('whole foods') || m.includes('kroger') || m.includes('safeway') || m.includes('walmart') || m.includes('costco') || m.includes('supermarket')) return 'Groceries';
+  if (m.includes('restaurant') || m.includes('cafe') || m.includes('coffee') || m.includes('starbucks') || m.includes('chipotle') || m.includes('mcdonald') || m.includes('burger') || m.includes('pizza') || m.includes('dining') || m.includes('bar') || m.includes('bakery') || m.includes('diner')) return 'Dining';
+  if (m.includes('rent') || m.includes('mortgage') || m.includes('apartment') || m.includes('housing') || m.includes('lease') || m.includes('landlord') || m.includes('electric') || m.includes('water utility') || m.includes('internet')) return 'Housing';
+  if (m.includes('netflix') || m.includes('spotify') || m.includes('hulu') || m.includes('disney') || m.includes('subscription') || m.includes('apple') || m.includes('youtube') || m.includes('prime') || m.includes('adobe') || m.includes('chatgpt') || m.includes('patreon')) return 'Subscriptions';
+  if (m.includes('pharmacy') || m.includes('cvs') || m.includes('walgreens') || m.includes('hospital') || m.includes('clinic') || m.includes('dental') || m.includes('medical') || m.includes('health') || m.includes('gym') || m.includes('fitness')) return 'Health';
+  if (m.includes('book') || m.includes('tuition') || m.includes('course') || m.includes('udemy') || m.includes('coursera') || m.includes('school') || m.includes('college') || m.includes('university') || m.includes('education')) return 'Education';
+  if (m.includes('cinema') || m.includes('theatre') || m.includes('movie') || m.includes('amc') || m.includes('steam') || m.includes('playstation') || m.includes('xbox') || m.includes('concert') || m.includes('entertainment')) return 'Entertainment';
+  if (m.includes('amazon') || m.includes('target') || m.includes('zara') || m.includes('nike') || m.includes('h&m') || m.includes('ebay') || m.includes('store') || m.includes('clothing') || m.includes('shopping')) return 'Shopping';
+  return 'Shopping';
+};
+
+const getRollingMonths = (count = 6): string[] => {
+  const result: string[] = [];
+  const now = new Date();
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    result.push(`${yyyy}-${mm}`);
+  }
+  return result;
+};
+
 const categories = ['All', 'Housing', 'Groceries', 'Dining', 'Transport', 'Subscriptions', 'Shopping', 'Health', 'Education', 'Entertainment'];
 
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
@@ -193,15 +253,41 @@ function App() {
     setToast('Synced with server');
   };
 
-  const exportData = () => {
+  const exportData = (format: 'json' | 'csv' = 'json') => {
+    if (format === 'csv') {
+      const headers = ['id', 'date', 'merchant', 'category', 'type', 'amount', 'account'];
+      const csvRows = [
+        headers.join(','),
+        ...transactions.map((t) =>
+          [
+            `"${t.id}"`,
+            `"${t.date}"`,
+            `"${(t.merchant || '').replace(/"/g, '""')}"`,
+            `"${(t.category || '').replace(/"/g, '""')}"`,
+            `"${t.type}"`,
+            t.amount,
+            `"${(t.account || '').replace(/"/g, '""')}"`,
+          ].join(',')
+        ),
+      ];
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `spendwise-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setToast('Transactions exported as CSV');
+      return;
+    }
     const blob = new Blob([JSON.stringify({ transactions, budgets, goals }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'spendwise-data.json';
+    anchor.download = `spendwise-data-${new Date().toISOString().slice(0, 10)}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-    setToast('Your data is ready to download');
+    setToast('Your data is ready to download (JSON)');
   };
 
   const navigate = (next: Page) => {
@@ -712,6 +798,30 @@ function Dashboard({
     return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date());
   }, []);
 
+  const topExpenseCategory = useMemo(() => {
+    const expenseTxs = transactions.filter(t => t.type === 'expense');
+    const catSums: Record<string, number> = {};
+    for (const t of expenseTxs) {
+      catSums[t.category] = (catSums[t.category] || 0) + t.amount;
+    }
+    const sorted = Object.entries(catSums).sort((a, b) => b[1] - a[1]);
+    return sorted.length > 0 ? { category: sorted[0][0], amount: sorted[0][1] } : null;
+  }, [transactions]);
+
+  const budgetAlert = useMemo(() => {
+    const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+    for (const b of budgets) {
+      const spent = transactions
+        .filter(t => t.type === 'expense' && t.category === b.category && t.date.startsWith(currentMonthPrefix))
+        .reduce((s, t) => s + t.amount, 0);
+      const percent = b.limit > 0 ? Math.round((spent / b.limit) * 100) : 0;
+      if (percent >= 80) {
+        return { category: b.category, percent, spent, limit: b.limit, isOver: percent > 100 };
+      }
+    }
+    return null;
+  }, [transactions, budgets]);
+
   return (
     <>
       <PageHeader
@@ -779,25 +889,41 @@ function Dashboard({
           </div>
           <div>
             <span className="eyebrow">Spendwise insight</span>
-            <h3>Your savings rate is trending up</h3>
+            <h3>{income > 0 ? 'Healthy Cash Flow' : 'Financial Activity'}</h3>
             <p>
-              You’re saving {savingsRate}% of your income across the period. That’s {Math.max(1, Math.round(savingsRate / 4))}% higher than your previous average.
+              {income > 0
+                ? `You’re saving ${savingsRate}% of your income. Net cash flow stands at ${money(savings)} across verified transactions.`
+                : transactions.length > 0
+                ? `Total expenses recorded: ${money(expense)} across ${transactions.length} transaction(s).`
+                : 'Welcome to SpendWise! Record your first income or expense to generate live financial health insights.'}
             </p>
           </div>
           <button onClick={() => navigate('assistant')} aria-label="Open AI assistant">
             <ChevronRight size={19} />
           </button>
         </div>
-        <div className="insight-card warning-insight">
+        <div className={`insight-card ${budgetAlert ? 'warning-insight' : 'warning-insight'}`}>
           <div className="insight-icon">
             <Lightbulb size={19} />
           </div>
           <div>
-            <span className="eyebrow">Worth a look</span>
-            <h3>Dining is your fastest-growing category</h3>
-            <p>Spending is up 18% compared with May. Small changes add up quickly.</p>
+            <span className="eyebrow">{budgetAlert ? 'Budget alert' : topExpenseCategory ? 'Top category' : 'Worth a look'}</span>
+            <h3>
+              {budgetAlert
+                ? `${budgetAlert.category} is ${budgetAlert.isOver ? 'over budget' : 'at ' + budgetAlert.percent + '% of limit'}`
+                : topExpenseCategory
+                ? `${topExpenseCategory.category} is your highest spending area`
+                : 'Keep your finances organized'}
+            </h3>
+            <p>
+              {budgetAlert
+                ? `Spent ${money(budgetAlert.spent)} of ${money(budgetAlert.limit)} monthly allowance.`
+                : topExpenseCategory
+                ? `Total recorded spend of ${money(topExpenseCategory.amount)} (${expense > 0 ? Math.round((topExpenseCategory.amount / expense) * 100) : 0}% of all expenses).`
+                : 'Set category budgets and track goals to build healthy financial habits.'}
+            </p>
           </div>
-          <button onClick={() => navigate('analytics')} aria-label="Open analytics">
+          <button onClick={() => navigate(budgetAlert ? 'budgets' : 'analytics')} aria-label="Open details">
             <ChevronRight size={19} />
           </button>
         </div>
@@ -842,12 +968,13 @@ function CardHeading({ title, subtitle, action }: { title: string; subtitle?: st
 
 function OverviewChart({ transactions }: { transactions: Transaction[] }) {
   const months = useMemo(() => {
-    const monthSet = new Set(transactions.map(t => t.date.slice(0, 7)).filter(Boolean));
-    if (monthSet.size === 0) {
-      return ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'];
+    const txMonths = Array.from(new Set(transactions.map(t => t.date.slice(0, 7)).filter(Boolean))).sort();
+    if (txMonths.length >= 6) {
+      return txMonths.slice(-6);
     }
-    const sorted = Array.from(monthSet).sort();
-    return sorted.slice(-6);
+    const rolling = getRollingMonths(6);
+    const combined = Array.from(new Set([...rolling, ...txMonths])).sort();
+    return combined.slice(-6);
   }, [transactions]);
 
   const values = useMemo(() => {
@@ -874,7 +1001,7 @@ function OverviewChart({ transactions }: { transactions: Transaction[] }) {
       })
       .join(' ');
 
-  const latestVal = values[values.length - 1] || { month: '2026-06', income: 0, expense: 0 };
+  const latestVal = values[values.length - 1] || { month: new Date().toISOString().slice(0, 7), income: 0, expense: 0 };
 
   return (
     <div className="chart-wrap">
@@ -984,8 +1111,8 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
           <span
             className="merchant-icon"
             style={{
-              background: `${categoryColors[transaction.category] || '#64748b'}18`,
-              color: categoryColors[transaction.category] || '#64748b',
+              background: `${getCategoryColor(transaction.category)}18`,
+              color: getCategoryColor(transaction.category),
             }}
           >
             {transaction.type === 'income' ? <ArrowDownRight size={17} /> : <CreditCard size={17} />}
@@ -1012,7 +1139,7 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
 function BudgetMini({ transactions, budgets }: { transactions: Transaction[]; budgets: Budget[] }) {
   const currentMonthPrefix = useMemo(() => {
     const dates = transactions.map(t => t.date.slice(0, 7)).filter(Boolean).sort();
-    return dates[dates.length - 1] || '2026-06';
+    return dates[dates.length - 1] || new Date().toISOString().slice(0, 7);
   }, [transactions]);
 
   return (
@@ -1025,7 +1152,7 @@ function BudgetMini({ transactions, budgets }: { transactions: Transaction[]; bu
         return (
           <div className="budget-mini-row" key={budget.id}>
             <div>
-              <span className="category-dot" style={{ background: categoryColors[budget.category] || '#64748b' }} />
+              <span className="category-dot" style={{ background: getCategoryColor(budget.category) }} />
               <strong>{budget.category}</strong>
               <span>
                 {money(spent)} / {money(budget.limit)}
@@ -1034,7 +1161,7 @@ function BudgetMini({ transactions, budgets }: { transactions: Transaction[]; bu
             <div className="progress-track">
               <i
                 className={percent > 90 ? 'over' : ''}
-                style={{ width: `${clamp(percent, 0, 100)}%`, background: categoryColors[budget.category] || '#64748b' }}
+                style={{ width: `${clamp(percent, 0, 100)}%`, background: getCategoryColor(budget.category) }}
               />
             </div>
             <b>{percent}%</b>
@@ -1181,8 +1308,8 @@ function Transactions({
                       <span
                         className="merchant-icon"
                         style={{
-                          background: `${categoryColors[transaction.category] || '#64748b'}18`,
-                          color: categoryColors[transaction.category] || '#64748b',
+                          background: `${getCategoryColor(transaction.category)}18`,
+                          color: getCategoryColor(transaction.category),
                         }}
                       >
                         {transaction.type === 'income' ? <ArrowDownRight size={16} /> : <CreditCard size={16} />}
@@ -1192,7 +1319,7 @@ function Transactions({
                   </td>
                   <td>
                     <span className="category-tag">
-                      <i style={{ background: categoryColors[transaction.category] || '#64748b' }} />
+                      <i style={{ background: getCategoryColor(transaction.category) }} />
                       {transaction.category}
                     </span>
                   </td>
@@ -1279,13 +1406,13 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
 
   const expenses = filteredTransactions.filter(t => t.type === 'expense');
   const byCategory = useMemo(() => {
-    return categories
-      .slice(1)
-      .map(category => ({
-        category,
-        value: expenses.filter(t => t.category === category).reduce((s, t) => s + t.amount, 0),
-      }))
-      .filter(item => item.value > 0)
+    const catMap: Record<string, number> = {};
+    for (const t of expenses) {
+      const cat = t.category || 'Uncategorized';
+      catMap[cat] = (catMap[cat] || 0) + t.amount;
+    }
+    return Object.entries(catMap)
+      .map(([category, value]) => ({ category, value }))
       .sort((a, b) => b.value - a.value);
   }, [expenses]);
 
@@ -1346,13 +1473,13 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
               <div className="category-bar" key={item.category}>
                 <div>
                   <span>
-                    <i style={{ background: categoryColors[item.category] || '#64748b' }} />
+                    <i style={{ background: getCategoryColor(item.category) }} />
                     {item.category}
                   </span>
                   <strong>{money(item.value)}</strong>
                 </div>
                 <div className="wide-track">
-                  <i style={{ width: `${(item.value / max) * 100}%`, background: categoryColors[item.category] || '#64748b' }} />
+                  <i style={{ width: `${(item.value / max) * 100}%`, background: getCategoryColor(item.category) }} />
                 </div>
               </div>
             ))}
@@ -1395,12 +1522,13 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
 
 function MonthlyBars({ transactions }: { transactions: Transaction[] }) {
   const months = useMemo(() => {
-    const monthSet = new Set(transactions.map(t => t.date.slice(0, 7)).filter(Boolean));
-    if (monthSet.size === 0) {
-      return ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'];
+    const txMonths = Array.from(new Set(transactions.map(t => t.date.slice(0, 7)).filter(Boolean))).sort();
+    if (txMonths.length >= 6) {
+      return txMonths.slice(-6);
     }
-    const sorted = Array.from(monthSet).sort();
-    return sorted.slice(-6);
+    const rolling = getRollingMonths(6);
+    const combined = Array.from(new Set([...rolling, ...txMonths])).sort();
+    return combined.slice(-6);
   }, [transactions]);
 
   const values = useMemo(() => {
@@ -1459,7 +1587,7 @@ function DonutChart({ data, total }: { data: { category: string; value: number }
                 cy="90"
                 r={radius}
                 className="donut-segment"
-                stroke={categoryColors[item.category] || '#64748b'}
+                stroke={getCategoryColor(item.category)}
                 strokeDasharray={`${length} ${circumference - length}`}
                 strokeDashoffset={-runningOffset}
               />
@@ -1477,7 +1605,7 @@ function DonutChart({ data, total }: { data: { category: string; value: number }
         {data.slice(0, 5).map(item => (
           <div key={item.category}>
             <span>
-              <i style={{ background: categoryColors[item.category] || '#64748b' }} />
+              <i style={{ background: getCategoryColor(item.category) }} />
               {item.category}
             </span>
             <strong>{total > 0 ? Math.round((item.value / total) * 100) : 0}%</strong>
@@ -1502,7 +1630,7 @@ function Budgets({
 }) {
   const currentMonthStr = useMemo(() => {
     const dates = transactions.map(t => t.date.slice(0, 7)).filter(Boolean).sort();
-    return dates[dates.length - 1] || '2026-06';
+    return dates[dates.length - 1] || new Date().toISOString().slice(0, 7);
   }, [transactions]);
 
   const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
@@ -1559,8 +1687,8 @@ function Budgets({
                 <span
                   className="category-icon"
                   style={{
-                    color: categoryColors[budget.category] || '#64748b',
-                    background: `${categoryColors[budget.category] || '#64748b'}18`,
+                    color: getCategoryColor(budget.category),
+                    background: `${getCategoryColor(budget.category)}18`,
                   }}
                 >
                   <CircleDollarSign size={18} />
@@ -1584,7 +1712,7 @@ function Budgets({
                   className={percent > 100 ? 'over' : ''}
                   style={{
                     width: `${clamp(percent, 0, 100)}%`,
-                    background: categoryColors[budget.category] || '#64748b',
+                    background: getCategoryColor(budget.category),
                   }}
                 />
               </div>
@@ -2072,14 +2200,32 @@ function SettingsPanel({
   theme: ThemePreference;
   setTheme: (theme: ThemePreference) => void;
   syncData: () => Promise<void>;
-  exportData: () => void;
+  exportData: (format?: 'json' | 'csv') => void;
   setToast: (message: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<'general' | 'notifications' | 'security' | 'data'>('general');
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [fullName, setFullName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [syncing, setSyncing] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const handleSaveProfile = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim()) {
+      setToast('Name cannot be empty.');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await updateUser(fullName.trim(), email.trim());
+      setToast('Profile saved successfully');
+    } catch (err: any) {
+      setToast(`Failed to update profile: ${err?.message || 'Error'}`);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   return (
     <>
@@ -2139,22 +2285,18 @@ function SettingsPanel({
                 <h2>Profile</h2>
                 <p>Your personal details and workspace identity.</p>
               </div>
-              <form
-                className="settings-form"
-                onSubmit={(e: FormEvent) => {
-                  e.preventDefault();
-                  setToast('Profile saved');
-                }}
-              >
+              <form className="settings-form" onSubmit={handleSaveProfile}>
                 <label>
                   Full name
-                  <input value={fullName} onChange={e => setFullName(e.target.value)} />
+                  <input value={fullName} onChange={e => setFullName(e.target.value)} disabled={savingProfile} />
                 </label>
                 <label>
                   Email address
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={savingProfile} />
                 </label>
-                <Button type="submit">Save changes</Button>
+                <Button type="submit" disabled={savingProfile}>
+                  {savingProfile ? 'Saving...' : 'Save changes'}
+                </Button>
               </form>
             </section>
           )}
@@ -2165,8 +2307,11 @@ function SettingsPanel({
                 <p>Your workspace financial data is securely synchronized with your PostgreSQL database.</p>
               </div>
               <div className="data-actions">
-                <Button variant="secondary" onClick={exportData} icon={<Download size={16} />}>
-                  Export data (JSON)
+                <Button variant="secondary" onClick={() => exportData('csv')} icon={<Download size={16} />}>
+                  Export CSV
+                </Button>
+                <Button variant="secondary" onClick={() => exportData('json')} icon={<Download size={16} />}>
+                  Export JSON
                 </Button>
                 <Button
                   variant="ghost"
@@ -2286,6 +2431,17 @@ function TransactionModal({
     });
   };
 
+  const handleMerchantChange = (merchantVal: string) => {
+    setForm((current) => {
+      const autoCat = predictCategoryFromMerchant(merchantVal, current.type);
+      return {
+        ...current,
+        merchant: merchantVal,
+        category: autoCat || current.category,
+      };
+    });
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const numAmount = Math.abs(Number(form.amount));
@@ -2321,7 +2477,7 @@ function TransactionModal({
             <input
               required
               value={form.merchant}
-              onChange={(event) => update('merchant', event.target.value)}
+              onChange={(event) => handleMerchantChange(event.target.value)}
               placeholder="e.g. Whole Foods Market"
               disabled={saving}
             />
@@ -2361,6 +2517,11 @@ function TransactionModal({
               <option>Savings</option>
             </select>
           </FormField>
+          {Number(form.amount) >= 500 && (
+            <div style={{ gridColumn: '1 / -1', fontSize: '12px', color: '#f59e0b', background: '#f59e0b18', padding: '6px 10px', borderRadius: '6px', border: '1px solid #f59e0b30' }}>
+              ⚡ Notice: This is a significant transaction amount ({money(Number(form.amount))}).
+            </div>
+          )}
         </div>
         <div className="modal-actions">
           <Button variant="secondary" onClick={onClose} disabled={saving}>
@@ -2604,7 +2765,9 @@ function UploadModal({ onClose, onImport }: { onClose: () => void; onImport: (tr
             const cleanDateRaw = values[dateIndex] || '';
             const rawAmountStr = (values[amountIndex] || '0').replace(/[$,\s]/g, '');
             const rawAmount = parseFloat(rawAmountStr) || 0;
-            const customCategory = categoryIndex >= 0 && values[categoryIndex] ? values[categoryIndex] : 'Shopping';
+            const txType = (rawAmount < 0 ? 'expense' : 'income') as 'income' | 'expense';
+            const rawCat = categoryIndex >= 0 && values[categoryIndex] ? values[categoryIndex].trim() : '';
+            const inferredCat = rawCat || predictCategoryFromMerchant(cleanMerchant, txType);
 
             let validDate = cleanDateRaw;
             if (cleanDateRaw.includes('/')) {
@@ -2618,10 +2781,10 @@ function UploadModal({ onClose, onImport }: { onClose: () => void; onImport: (tr
             return {
               id: `csv-${Date.now()}-${index}`,
               merchant: cleanMerchant,
-              category: categories.includes(customCategory) ? customCategory : 'Shopping',
+              category: inferredCat || (txType === 'income' ? 'Income' : 'Shopping'),
               date: validDate || new Date().toISOString().slice(0, 10),
               amount: Math.abs(rawAmount),
-              type: (rawAmount < 0 ? 'expense' : 'income') as 'income' | 'expense',
+              type: txType,
               account: 'Imported CSV',
             };
           })

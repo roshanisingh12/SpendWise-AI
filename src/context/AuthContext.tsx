@@ -14,6 +14,7 @@ type AuthContextType = {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  updateUser: (name: string, email: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -66,6 +67,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateUser = async (name: string, email: string) => {
+    const updated = await ApiService.updateProfile({ name, email });
+    if (updated.user) {
+      setUser(updated.user);
+    } else {
+      await fetchMe();
+    }
+  };
+
   const logout = async () => {
     try {
       await ApiService.logout();
@@ -80,7 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, updateUser, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
