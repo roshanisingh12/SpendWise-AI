@@ -19,7 +19,8 @@ export async function summary(req: AuthenticatedRequest, res: Response, next: Ne
       return;
     }
 
-    const result = await analyticsService.getSummary(req.user!.id, rawYear, rawMonth);
+    const currencyCode = req.query.currencyCode ? String(req.query.currencyCode).trim().toUpperCase() : undefined;
+    const result = await analyticsService.getSummary(req.user!.id, rawYear, rawMonth, currencyCode);
     sendSuccess(res, result);
   } catch (error) {
     next(error);
@@ -31,7 +32,8 @@ export async function monthly(req: AuthenticatedRequest, res: Response, next: Ne
     const rawMonths = req.query.months ? parseInt(String(req.query.months), 10) : 6;
     // Clamp to 1–24 months to prevent unbounded loops
     const months = isNaN(rawMonths) ? 6 : Math.max(1, Math.min(24, rawMonths));
-    const result = await analyticsService.getMonthlyAnalytics(req.user!.id, months);
+    const currencyCode = req.query.currencyCode ? String(req.query.currencyCode).trim().toUpperCase() : undefined;
+    const result = await analyticsService.getMonthlyAnalytics(req.user!.id, months, currencyCode);
     sendSuccess(res, { months: result });
   } catch (error) {
     next(error);
@@ -42,7 +44,8 @@ export async function categories(req: AuthenticatedRequest, res: Response, next:
   try {
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
-    const result = await analyticsService.getCategoryAnalytics(req.user!.id, startDate, endDate);
+    const currencyCode = req.query.currencyCode ? String(req.query.currencyCode).trim().toUpperCase() : undefined;
+    const result = await analyticsService.getCategoryAnalytics(req.user!.id, startDate, endDate, currencyCode);
     sendSuccess(res, { categories: result });
   } catch (error) {
     next(error);

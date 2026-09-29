@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { ApiService } from '../services/api';
 
-type User = {
+export type User = {
   id: string;
   name: string;
   email: string;
-  // other fields if needed
+  preferredCurrency?: string;
 };
 
 type AuthContextType = {
@@ -13,7 +13,8 @@ type AuthContextType = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, preferredCurrency?: string) => Promise<void>;
+  updateUser: (data: { name?: string; email?: string; preferredCurrency?: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -56,12 +57,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async (name: string, email: string, password: string) => {
-    const result = await ApiService.register({ name, email, password });
+  const register = async (name: string, email: string, password: string, preferredCurrency?: string) => {
+    const result = await ApiService.register({ name, email, password, preferredCurrency: preferredCurrency || 'INR' });
     const newToken = result.token;
     if (newToken) {
       localStorage.setItem('spendwise-token', newToken);
       setToken(newToken);
+      await fetchMe();
+    }
+  };
+
+  const updateUser = async (data: { name?: string; email?: string; preferredCurrency?: string }) => {
+    const res = await ApiService.updateUser(data);
+    if (res?.user) {
+      setUser(res.user);
+    } else {
       await fetchMe();
     }
   };
@@ -80,7 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, updateUser, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

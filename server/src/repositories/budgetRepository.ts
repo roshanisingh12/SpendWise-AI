@@ -22,6 +22,7 @@ export async function createBudget(userId: string, data: BudgetInput) {
       userId,
       categoryId: data.categoryId ?? null,
       amount: data.amount,
+      currencyCode: data.currencyCode || 'INR',
       period: data.period,
       startDate: new Date(data.startDate),
       endDate: data.endDate ? new Date(data.endDate) : null,
@@ -36,6 +37,7 @@ export async function updateBudget(id: string, data: Partial<BudgetInput>) {
     data: {
       ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
       ...(data.amount !== undefined && { amount: data.amount }),
+      ...(data.currencyCode && { currencyCode: data.currencyCode }),
       ...(data.period && { period: data.period }),
       ...(data.startDate && { startDate: new Date(data.startDate) }),
       ...(data.endDate !== undefined && { endDate: data.endDate ? new Date(data.endDate) : null }),
