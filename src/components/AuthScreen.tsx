@@ -2,6 +2,7 @@
 // Wired to AuthContext; does NOT call ApiService directly.
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { SUPPORTED_CURRENCIES } from '../utils/currency';
 
 /** Map HTTP-status-bearing error messages to user-friendly strings. */
 function friendlyError(err: unknown): string {
@@ -55,6 +56,7 @@ export function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [preferredCurrency, setPreferredCurrency] = useState('INR');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -87,7 +89,7 @@ export function AuthScreen() {
       if (mode === 'login') {
         await login(email, password);
       } else {
-        await register(name, email, password);
+        await register(name, email, password, preferredCurrency);
       }
       // On success the AuthContext sets user → App re-renders to dashboard automatically
     } catch (err: unknown) {
@@ -103,18 +105,35 @@ export function AuthScreen() {
       {error && <div className="form-error" role="alert">{error}</div>}
       <form onSubmit={handleSubmit} className="auth-form">
         {mode === 'register' && (
-          <div className="form-field">
-            <label>Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
-              disabled={submitting}
-              placeholder="Your full name"
-              autoComplete="name"
-            />
-          </div>
+          <>
+            <div className="form-field">
+              <label>Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+                disabled={submitting}
+                placeholder="Your full name"
+                autoComplete="name"
+              />
+            </div>
+            <div className="form-field">
+              <label>Preferred Currency</label>
+              <select
+                value={preferredCurrency}
+                onChange={e => setPreferredCurrency(e.target.value)}
+                disabled={submitting}
+                className="form-select"
+              >
+                {SUPPORTED_CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} ({c.symbol}) - {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
         <div className="form-field">
           <label>Email</label>

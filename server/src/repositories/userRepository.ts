@@ -9,6 +9,7 @@ const safeUserSelect = {
   id: true,
   name: true,
   email: true,
+  preferredCurrency: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -31,6 +32,7 @@ export async function createUser(data: RegisterInput) {
       name: data.name,
       email: data.email,
       passwordHash,
+      preferredCurrency: data.preferredCurrency || 'INR',
     },
     select: safeUserSelect,
   });

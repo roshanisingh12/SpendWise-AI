@@ -49,13 +49,22 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import {
+  formatCurrency,
+  formatCurrencyShort,
+  detectCurrency,
+  extractAmount,
+  SUPPORTED_CURRENCIES,
+  VALID_CURRENCY_CODES,
+  getCurrencySymbol,
+} from './utils/currency';
 
 type Theme = 'light' | 'dark';
 type ThemePreference = Theme | 'system';
 type Page = 'dashboard' | 'transactions' | 'analytics' | 'budgets' | 'savings' | 'assistant' | 'settings';
-type Transaction = { id: string; merchant: string; category: string; categoryId?: string | null; date: string; amount: number; type: 'income' | 'expense'; account: string };
-type Budget = { id: string; category: string; categoryId?: string | null; limit: number };
-type Goal = { id: string; name: string; target: number; saved: number; date: string; color: string };
+type Transaction = { id: string; merchant: string; category: string; categoryId?: string | null; date: string; amount: number; currencyCode: string; type: 'income' | 'expense'; account: string };
+type Budget = { id: string; category: string; categoryId?: string | null; limit: number; currencyCode: string };
+type Goal = { id: string; name: string; target: number; saved: number; currencyCode: string; date: string; color: string };
 
 type IconType = typeof LayoutDashboard;
 
@@ -122,8 +131,8 @@ const getRollingMonths = (count = 6): string[] => {
 
 const categories = ['All', 'Housing', 'Groceries', 'Dining', 'Transport', 'Subscriptions', 'Shopping', 'Health', 'Education', 'Entertainment'];
 
-const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
-const preciseMoney = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+const money = (value: number, currencyCode = 'INR') => formatCurrencyShort(value, currencyCode);
+const preciseMoney = (value: number, currencyCode = 'INR') => formatCurrency(value, currencyCode);
 
 const parseDateSafe = (value: string): Date => {
   if (!value) return new Date();
@@ -303,6 +312,7 @@ function App() {
       const payload: CreateTransactionPayload = {
         type: (transaction.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
         amount: transaction.amount,
+        currencyCode: transaction.currencyCode || user?.preferredCurrency || 'INR',
         categoryId: matchedCat?.id || transaction.categoryId || null,
         description: transaction.merchant,
         date: transaction.date,
@@ -326,6 +336,7 @@ function App() {
       const payload: UpdateTransactionPayload = {
         type: (transaction.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
         amount: transaction.amount,
+        currencyCode: transaction.currencyCode || user?.preferredCurrency || 'INR',
         categoryId: matchedCat?.id || transaction.categoryId || null,
         description: transaction.merchant,
         date: transaction.date,
@@ -362,6 +373,7 @@ function App() {
       const created = await ApiService.createBudget({
         categoryId: matchedCat?.id || budget.categoryId || null,
         amount: budget.limit,
+        currencyCode: budget.currencyCode || user?.preferredCurrency || 'INR',
         period: 'MONTHLY',
         startDate: new Date().toISOString().split('T')[0],
       });
@@ -370,6 +382,7 @@ function App() {
         category: created.budget?.category?.name || budget.category,
         categoryId: created.budget?.categoryId || matchedCat?.id,
         limit: Number(created.budget?.amount ?? budget.limit),
+        currencyCode: created.budget?.currencyCode || budget.currencyCode || user?.preferredCurrency || 'INR',
       };
       setBudgets((current) => [...current, newBudgetItem]);
       setModal(null);
@@ -398,6 +411,7 @@ function App() {
         name: goal.name,
         targetAmount: goal.target,
         currentAmount: goal.saved,
+        currencyCode: goal.currencyCode || user?.preferredCurrency || 'INR',
         targetDate: goal.date || null,
       });
       const newGoalItem: Goal = {
@@ -405,6 +419,7 @@ function App() {
         name: created.goal?.name || goal.name,
         target: Number(created.goal?.targetAmount ?? goal.target),
         saved: Number(created.goal?.currentAmount ?? goal.saved),
+        currencyCode: created.goal?.currencyCode || goal.currencyCode || user?.preferredCurrency || 'INR',
         date: created.goal?.targetDate ? created.goal.targetDate.split('T')[0] : goal.date,
         color: goal.color,
       };
@@ -456,6 +471,7 @@ function App() {
           await ApiService.createTransaction({
             type: (item.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
             amount: item.amount,
+            currencyCode: item.currencyCode || user?.preferredCurrency || 'INR',
             categoryId: matchedCat?.id || null,
             description: item.merchant,
             date: item.date,
@@ -788,8 +804,28 @@ function Dashboard({
   onAdd: () => void;
 }) {
   const { user } = useAuth();
-  const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const userPref = user?.preferredCurrency || 'INR';
+
+  const availableCurrencies = useMemo(() => {
+    const set = new Set(transactions.map(t => t.currencyCode || userPref));
+    if (!set.has(userPref)) set.add(userPref);
+    return Array.from(set);
+  }, [transactions, userPref]);
+
+  const [activeCurrency, setActiveCurrency] = useState(userPref);
+
+  useEffect(() => {
+    if (userPref && !availableCurrencies.includes(activeCurrency)) {
+      setActiveCurrency(userPref);
+    }
+  }, [userPref, availableCurrencies, activeCurrency]);
+
+  const activeTxs = useMemo(() => {
+    return transactions.filter(t => (t.currencyCode || userPref) === activeCurrency);
+  }, [transactions, activeCurrency, userPref]);
+
+  const income = activeTxs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const expense = activeTxs.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const savings = income - expense;
   const savingsRate = income > 0 ? Math.round((savings / income) * 100) : 0;
   const score = clamp(63 + Math.round(savingsRate / 2), 0, 100);
@@ -839,20 +875,39 @@ function Dashboard({
           </div>
         }
       />
+      {availableCurrencies.length > 1 && (
+        <div className="currency-pills">
+          <span className="eyebrow" style={{ alignSelf: 'center', marginRight: '4px' }}>Currency:</span>
+          {availableCurrencies.map(c => {
+            const count = transactions.filter(t => (t.currencyCode || userPref) === c).length;
+            return (
+              <button
+                key={c}
+                type="button"
+                className={`currency-pill ${activeCurrency === c ? 'active' : ''}`}
+                onClick={() => setActiveCurrency(c)}
+              >
+                <strong>{c} ({getCurrencySymbol(c)})</strong>
+                <small>{count} txs</small>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <section className="stats-grid">
-        <StatCard label="Total balance" value={money(savings)} icon={<Wallet size={18} />} />
-        <StatCard label="Total income" value={money(income)} icon={<ArrowDownRight size={18} />} />
-        <StatCard label="Total expenses" value={money(expense)} positive={false} icon={<ArrowUpRight size={18} />} />
+        <StatCard label={`Total balance (${activeCurrency})`} value={money(savings, activeCurrency)} icon={<Wallet size={18} />} />
+        <StatCard label={`Total income (${activeCurrency})`} value={money(income, activeCurrency)} icon={<ArrowDownRight size={18} />} />
+        <StatCard label={`Total expenses (${activeCurrency})`} value={money(expense, activeCurrency)} positive={false} icon={<ArrowUpRight size={18} />} />
         <StatCard label="Savings rate" value={`${savingsRate}%`} icon={<Target size={18} />} />
       </section>
       <div className="dashboard-grid">
         <div className="card chart-card trend-card">
           <CardHeading
             title="Spending overview"
-            subtitle="Income and expenses over time"
+            subtitle={`Income and expenses over time (${activeCurrency})`}
             action={<button className="select-button" onClick={() => navigate('analytics')}>Last 6 months <ChevronDown size={14} /></button>}
           />
-          <OverviewChart transactions={transactions} />
+          <OverviewChart transactions={activeTxs.length ? activeTxs : transactions} />
         </div>
         <HealthCard score={score} savingsRate={savingsRate} />
       </div>
@@ -948,7 +1003,7 @@ function Dashboard({
         </button>
       </div>
       <div className="sr-only" aria-live="polite">
-        Dashboard showing {transactions.length} transactions, {money(expense)} in expenses, and a financial health score of {score}.
+        Dashboard showing {transactions.length} transactions, {money(expense, activeCurrency)} in expenses, and a financial health score of {score}.
       </div>
     </>
   );
@@ -1125,7 +1180,7 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
           </div>
           <strong className={transaction.type === 'income' ? 'amount-income' : ''}>
             {transaction.type === 'income' ? '+' : '-'}
-            {preciseMoney(transaction.amount)}
+            {preciseMoney(transaction.amount, transaction.currencyCode)}
           </strong>
         </div>
       ))}
@@ -1145,17 +1200,18 @@ function BudgetMini({ transactions, budgets }: { transactions: Transaction[]; bu
   return (
     <div className="budget-mini">
       {budgets.slice(0, 4).map(budget => {
+        const bCur = budget.currencyCode || 'INR';
         const spent = transactions
-          .filter(t => t.type === 'expense' && t.category === budget.category && t.date.startsWith(currentMonthPrefix))
+          .filter(t => t.type === 'expense' && t.category === budget.category && t.date.startsWith(currentMonthPrefix) && (t.currencyCode || 'INR') === bCur)
           .reduce((s, t) => s + t.amount, 0);
         const percent = budget.limit > 0 ? Math.round((spent / budget.limit) * 100) : 0;
         return (
           <div className="budget-mini-row" key={budget.id}>
             <div>
               <span className="category-dot" style={{ background: getCategoryColor(budget.category) }} />
-              <strong>{budget.category}</strong>
+              <strong>{budget.category} <span className="currency-badge secondary" style={{ fontSize: '9px', padding: '1px 4px' }}>{bCur}</span></strong>
               <span>
-                {money(spent)} / {money(budget.limit)}
+                {money(spent, bCur)} / {money(budget.limit, bCur)}
               </span>
             </div>
             <div className="progress-track">
@@ -1199,6 +1255,7 @@ function Transactions({
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const [type, setType] = useState('All');
+  const [currencyFilter, setCurrencyFilter] = useState('All');
   const [sortAsc, setSortAsc] = useState(false);
 
   // Dynamic categories filter list
@@ -1215,8 +1272,9 @@ function Transactions({
         .filter((t) => `${t.merchant} ${t.category}`.toLowerCase().includes(query.toLowerCase()))
         .filter((t) => category === 'All' || t.category === category)
         .filter((t) => type === 'All' || t.type === type)
+        .filter((t) => currencyFilter === 'All' || (t.currencyCode || 'INR') === currencyFilter)
         .sort((a, b) => (sortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))),
-    [transactions, query, category, type, sortAsc]
+    [transactions, query, category, type, currencyFilter, sortAsc]
   );
 
   return (
@@ -1275,6 +1333,14 @@ function Transactions({
               <option value="income">Income</option>
               <option value="expense">Expenses</option>
             </select>
+            <select value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value)} aria-label="Filter by currency">
+              <option value="All">All currencies</option>
+              {SUPPORTED_CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} ({c.symbol})
+                </option>
+              ))}
+            </select>
             <button className="icon-button" aria-label="Change sort order" onClick={() => setSortAsc((current) => !current)}>
               <ListFilter size={17} />
             </button>
@@ -1295,7 +1361,7 @@ function Transactions({
                 <th>Transaction</th>
                 <th>Category</th>
                 <th>Date</th>
-                <th>Account</th>
+                <th>Account / Currency</th>
                 <th className="align-right">Amount</th>
                 <th aria-label="Actions" />
               </tr>
@@ -1324,10 +1390,13 @@ function Transactions({
                     </span>
                   </td>
                   <td>{dateLabel(transaction.date)}</td>
-                  <td className="muted-cell">{transaction.account}</td>
+                  <td className="muted-cell">
+                    <span className="currency-badge" style={{ marginRight: '6px' }}>{transaction.currencyCode || 'INR'}</span>
+                    {transaction.account}
+                  </td>
                   <td className={`align-right amount-cell ${transaction.type === 'income' ? 'amount-income' : ''}`}>
                     {transaction.type === 'income' ? '+' : '-'}
-                    {preciseMoney(transaction.amount)}
+                    {preciseMoney(transaction.amount, transaction.currencyCode)}
                   </td>
                   <td>
                     <div className="row-actions">
@@ -1369,15 +1438,32 @@ function Transactions({
 }
 
 function Analytics({ transactions }: { transactions: Transaction[] }) {
+  const { user } = useAuth();
+  const userPref = user?.preferredCurrency || 'INR';
+
+  const availableCurrencies = useMemo(() => {
+    const set = new Set(transactions.map(t => t.currencyCode || userPref));
+    if (!set.has(userPref)) set.add(userPref);
+    return Array.from(set);
+  }, [transactions, userPref]);
+
+  const [selectedCurrency, setSelectedCurrency] = useState(userPref);
   const [range, setRange] = useState('Last 6 months');
 
+  const effectiveCurrency = selectedCurrency === 'ALL' ? userPref : selectedCurrency;
+
+  const currencyTransactions = useMemo(() => {
+    if (selectedCurrency === 'ALL') return transactions;
+    return transactions.filter(t => (t.currencyCode || userPref) === selectedCurrency);
+  }, [transactions, selectedCurrency, userPref]);
+
   const filteredTransactions = useMemo(() => {
-    if (!transactions.length) return [];
-    const sortedDates = [...transactions].map(t => t.date).sort();
+    if (!currencyTransactions.length) return [];
+    const sortedDates = [...currencyTransactions].map(t => t.date).sort();
     const latestDateStr = sortedDates[sortedDates.length - 1] || '2026-06-30';
     const latestDate = parseDateSafe(latestDateStr);
 
-    return transactions.filter(t => {
+    return currencyTransactions.filter(t => {
       const tDate = parseDateSafe(t.date);
       if (isNaN(tDate.getTime())) return true;
 
@@ -1402,7 +1488,7 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
       }
       return true;
     });
-  }, [transactions, range]);
+  }, [currencyTransactions, range]);
 
   const expenses = filteredTransactions.filter(t => t.type === 'expense');
   const byCategory = useMemo(() => {
@@ -1427,19 +1513,34 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
         title="Analytics"
         description="Understand your patterns and make more intentional decisions."
         action={
-          <select className="range-select" value={range} onChange={event => setRange(event.target.value)} aria-label="Select date range">
-            <option>This month</option>
-            <option>Last month</option>
-            <option>Last 3 months</option>
-            <option>Last 6 months</option>
-            <option>This year</option>
-          </select>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <select
+              className="range-select"
+              value={selectedCurrency}
+              onChange={event => setSelectedCurrency(event.target.value)}
+              aria-label="Select currency"
+            >
+              <option value="ALL">All Currencies</option>
+              {SUPPORTED_CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>
+                  {c.code} ({c.symbol})
+                </option>
+              ))}
+            </select>
+            <select className="range-select" value={range} onChange={event => setRange(event.target.value)} aria-label="Select date range">
+              <option>This month</option>
+              <option>Last month</option>
+              <option>Last 3 months</option>
+              <option>Last 6 months</option>
+              <option>This year</option>
+            </select>
+          </div>
         }
       />
       <div className="analytics-summary">
         <div>
-          <span className="eyebrow">Total spending</span>
-          <strong>{money(total)}</strong>
+          <span className="eyebrow">Total spending ({effectiveCurrency})</span>
+          <strong>{money(total, effectiveCurrency)}</strong>
           <span className="positive-text">
             <ArrowUpRight size={15} /> 2.1% lower than previous period
           </span>
@@ -1447,7 +1548,7 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
         <div>
           <span className="eyebrow">Top category</span>
           <strong>{top?.category || '—'}</strong>
-          <span>{top && total > 0 ? `${money(top.value)} · ${Math.round((top.value / total) * 100)}% of spending` : 'No data yet'}</span>
+          <span>{top && total > 0 ? `${money(top.value, effectiveCurrency)} · ${Math.round((top.value / total) * 100)}% of spending` : 'No data yet'}</span>
         </div>
         <div>
           <span className="eyebrow">Transactions analyzed</span>
@@ -1457,12 +1558,12 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
       </div>
       <div className="analytics-grid">
         <div className="card chart-card">
-          <CardHeading title="Monthly comparison" subtitle={`Income versus expenses · ${range}`} />
-          <MonthlyBars transactions={filteredTransactions.length ? filteredTransactions : transactions} />
+          <CardHeading title="Monthly comparison" subtitle={`Income versus expenses · ${range} (${effectiveCurrency})`} />
+          <MonthlyBars transactions={filteredTransactions.length ? filteredTransactions : currencyTransactions} />
         </div>
         <div className="card chart-card">
-          <CardHeading title="Where your money goes" subtitle="All categories" />
-          <DonutChart data={byCategory} total={total} />
+          <CardHeading title="Where your money goes" subtitle={`All categories (${effectiveCurrency})`} />
+          <DonutChart data={byCategory} total={total} currencyCode={effectiveCurrency} />
         </div>
       </div>
       <div className="analytics-grid bottom-analytics">
@@ -1476,7 +1577,7 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
                     <i style={{ background: getCategoryColor(item.category) }} />
                     {item.category}
                   </span>
-                  <strong>{money(item.value)}</strong>
+                  <strong>{money(item.value, effectiveCurrency)}</strong>
                 </div>
                 <div className="wide-track">
                   <i style={{ width: `${(item.value / max) * 100}%`, background: getCategoryColor(item.category) }} />
@@ -1568,7 +1669,7 @@ function MonthlyBars({ transactions }: { transactions: Transaction[] }) {
   );
 }
 
-function DonutChart({ data, total }: { data: { category: string; value: number }[]; total: number }) {
+function DonutChart({ data, total, currencyCode = 'INR' }: { data: { category: string; value: number }[]; total: number; currencyCode?: string }) {
   const radius = 62;
   const circumference = 2 * Math.PI * radius;
   let runningOffset = 0;
@@ -1597,7 +1698,7 @@ function DonutChart({ data, total }: { data: { category: string; value: number }
           })}
         </svg>
         <div>
-          <strong>{money(total)}</strong>
+          <strong>{money(total, currencyCode)}</strong>
           <span>Total spend</span>
         </div>
       </div>

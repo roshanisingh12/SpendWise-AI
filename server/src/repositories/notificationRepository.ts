@@ -1,9 +1,13 @@
 import { prisma } from '../config/prisma';
 
-export async function listNotifications(userId: string) {
+const MAX_NOTIFICATIONS = 100;
+
+export async function listNotifications(userId: string, limit = MAX_NOTIFICATIONS) {
+  const safeLimit = Math.min(limit, MAX_NOTIFICATIONS);
   return prisma.notification.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
+    take: safeLimit,
   });
 }
 

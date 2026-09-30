@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { ApiService } from '../services/api';
 
-type User = {
+export type User = {
   id: string;
   name: string;
   email: string;
-  // other fields if needed
+  preferredCurrency?: string;
 };
 
 type AuthContextType = {
@@ -13,8 +13,8 @@ type AuthContextType = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  updateUser: (name: string, email: string) => Promise<void>;
+  register: (name: string, email: string, password: string, preferredCurrency?: string) => Promise<void>;
+  updateUser: ((name: string, email?: string) => Promise<void>) & ((data: { name?: string; email?: string; preferredCurrency?: string }) => Promise<void>);
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -57,8 +57,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async (name: string, email: string, password: string) => {
-    const result = await ApiService.register({ name, email, password });
+  const register = async (name: string, email: string, password: string, preferredCurrency?: string) => {
+    const result = await ApiService.register({ name, email, password, preferredCurrency: preferredCurrency || 'INR' });
     const newToken = result.token;
     if (newToken) {
       localStorage.setItem('spendwise-token', newToken);
@@ -67,14 +67,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateUser = async (name: string, email: string) => {
-    const updated = await ApiService.updateProfile({ name, email });
-    if (updated.user) {
-      setUser(updated.user);
+  const updateUser = (async (
+    arg1: string | { name?: string; email?: string; preferredCurrency?: string },
+    arg2?: string
+  ) => {
+    const payload = typeof arg1 === 'string' ? { name: arg1, email: arg2 } : arg1;
+    const res = await ApiService.updateUser(payload);
+    if (res?.user) {
+      setUser(res.user);
     } else {
       await fetchMe();
     }
-  };
+  }) as AuthContextType['updateUser'];
 
   const logout = async () => {
     try {

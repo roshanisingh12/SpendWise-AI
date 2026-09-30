@@ -19,6 +19,7 @@ export async function createSavingsGoal(userId: string, data: SavingsGoalInput) 
       name: data.name,
       targetAmount: data.targetAmount,
       currentAmount: data.currentAmount ?? 0,
+      currencyCode: data.currencyCode || 'INR',
       targetDate: data.targetDate ? new Date(data.targetDate) : null,
     },
   });
@@ -31,6 +32,7 @@ export async function updateSavingsGoal(id: string, data: Partial<SavingsGoalInp
       ...(data.name && { name: data.name }),
       ...(data.targetAmount !== undefined && { targetAmount: data.targetAmount }),
       ...(data.currentAmount !== undefined && { currentAmount: data.currentAmount }),
+      ...(data.currencyCode && { currencyCode: data.currencyCode }),
       ...(data.targetDate !== undefined && { targetDate: data.targetDate ? new Date(data.targetDate) : null }),
     },
   });

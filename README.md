@@ -615,3 +615,44 @@ Spendwise AI is an educational/project application. Its AI-generated insights ar
 
 ### **See your money. Understand your future.**
   
+
+## Environment Configuration
+
+### Frontend (`.env`)
+Required variables for the Vite frontend:
+
+```env
+VITE_API_BASE_URL=http://localhost:5000/api
+```
+
+### Backend (`server/.env`)
+Required variables for the Express backend:
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/spendwise"
+JWT_SECRET="your-secure-jwt-secret"
+JWT_EXPIRES_IN=7d
+PORT=5000
+CLIENT_URL=http://localhost:5173
+NODE_ENV=development
+```
+
+
+## AI Configuration
+
+SpendWise AI uses a server-side AI provider to power the financial assistant.
+
+**Required server-side environment variable (in server/.env):**
+
+`env
+GEMINI_API_KEY=your-google-gemini-api-key
+# OR
+OPENAI_API_KEY=your-openai-api-key
+# OR
+AI_PROVIDER=groq
+AI_API_KEY=your-groq-api-key
+`
+
+> **IMPORTANT:** The AI API key must NEVER be placed in VITE_* frontend variables or any file accessible to the browser.
+
+If no API key is configured, SpendWise AI automatically uses its built-in deterministic financial reasoning engine, which calculates accurate responses from your real database data.

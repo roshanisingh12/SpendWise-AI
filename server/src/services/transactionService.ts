@@ -9,6 +9,7 @@ interface ListOptions {
   limit?: string;
   type?: string;
   categoryId?: string;
+  currencyCode?: string;
   startDate?: string;
   endDate?: string;
   search?: string;
@@ -24,6 +25,7 @@ export async function listTransactions(userId: string, query: ListOptions) {
     skip,
     type: type && ['INCOME', 'EXPENSE'].includes(type) ? type : undefined,
     categoryId: query.categoryId,
+    currencyCode: query.currencyCode?.trim().toUpperCase(),
     startDate: query.startDate,
     endDate: query.endDate,
     search: query.search?.trim(),

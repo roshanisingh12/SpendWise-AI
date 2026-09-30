@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
+import { formatCurrency } from '../utils/currency';
 
 function toNum(d: Decimal | null | undefined): number {
   return d ? Number(d) : 0;
@@ -8,10 +9,12 @@ function toNum(d: Decimal | null | undefined): number {
 export interface FinancialContext {
   user: {
     name: string;
+    preferredCurrency: string;
   };
   currentPeriod: {
     monthName: string;
     year: number;
+    currencyCode: string;
     totalIncome: number;
     totalExpenses: number;
     balance: number;
@@ -21,17 +24,20 @@ export interface FinancialContext {
   previousPeriod: {
     monthName: string;
     year: number;
+    currencyCode: string;
     totalExpenses: number;
     totalIncome: number;
     expenseDiff: number;
     expenseDiffPercent: number;
   };
   last7Days: {
+    currencyCode: string;
     totalExpenses: number;
     transactionCount: number;
   };
   topCategories: Array<{
     name: string;
+    currencyCode: string;
     amount: number;
     percentage: number;
     count: number;
@@ -39,6 +45,7 @@ export interface FinancialContext {
   largestExpenses: Array<{
     description: string;
     category: string;
+    currencyCode: string;
     amount: number;
     date: string;
   }>;
@@ -47,11 +54,13 @@ export interface FinancialContext {
     date: string;
     description: string;
     category: string;
+    currencyCode: string;
     amount: number;
     type: 'INCOME' | 'EXPENSE';
   }>;
   budgets: Array<{
     categoryName: string;
+    currencyCode: string;
     budgetAmount: number;
     actualSpent: number;
     remaining: number;
@@ -61,6 +70,7 @@ export interface FinancialContext {
   }>;
   savingsGoals: Array<{
     name: string;
+    currencyCode: string;
     targetAmount: number;
     currentAmount: number;
     remaining: number;
@@ -78,10 +88,12 @@ export interface FinancialContext {
   }>;
   matchedSpecificCategory?: {
     name: string;
+    currencyCode: string;
     amount: number;
     percentage: number;
     transactions: Array<{
       description: string;
+      currencyCode: string;
       amount: number;
       date: string;
     }>;
@@ -96,6 +108,13 @@ export async function getUserFinancialContext(
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-indexed
+
+  // User preferred currency
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferredCurrency: true },
+  });
+  const preferredCurrency = user?.preferredCurrency || 'INR';
 
   // Current month bounds
   const startOfCurrentMonth = new Date(currentYear, currentMonth, 1);
@@ -123,14 +142,14 @@ export async function getUserFinancialContext(
     recentRawTransactions,
     largestRawExpenses,
   ] = await Promise.all([
-    // Current month income
+    // Current month income (in preferred currency)
     prisma.transaction.aggregate({
-      where: { userId, type: 'INCOME', date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
+      where: { userId, currencyCode: preferredCurrency, type: 'INCOME', date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
       _sum: { amount: true },
     }),
-    // Current month expense
+    // Current month expense (in preferred currency)
     prisma.transaction.aggregate({
-      where: { userId, type: 'EXPENSE', date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
+      where: { userId, currencyCode: preferredCurrency, type: 'EXPENSE', date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
       _sum: { amount: true },
     }),
     // Current month count
@@ -139,22 +158,22 @@ export async function getUserFinancialContext(
     }),
     // Previous month income
     prisma.transaction.aggregate({
-      where: { userId, type: 'INCOME', date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
+      where: { userId, currencyCode: preferredCurrency, type: 'INCOME', date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
       _sum: { amount: true },
     }),
     // Previous month expense
     prisma.transaction.aggregate({
-      where: { userId, type: 'EXPENSE', date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
+      where: { userId, currencyCode: preferredCurrency, type: 'EXPENSE', date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
       _sum: { amount: true },
     }),
     // Last 7 days expense
     prisma.transaction.aggregate({
-      where: { userId, type: 'EXPENSE', date: { gte: startOfLast7Days } },
+      where: { userId, currencyCode: preferredCurrency, type: 'EXPENSE', date: { gte: startOfLast7Days } },
       _sum: { amount: true },
     }),
     // Last 7 days count
     prisma.transaction.count({
-      where: { userId, type: 'EXPENSE', date: { gte: startOfLast7Days } },
+      where: { userId, currencyCode: preferredCurrency, type: 'EXPENSE', date: { gte: startOfLast7Days } },
     }),
     // Categories for user
     prisma.category.findMany({
@@ -267,9 +286,11 @@ export async function getUserFinancialContext(
   // Calculate actual budget spending
   const budgets = await Promise.all(
     rawBudgets.map(async (b) => {
+      const budgetCurrency = b.currencyCode || preferredCurrency;
       const spendAgg = await prisma.transaction.aggregate({
         where: {
           userId,
+          currencyCode: budgetCurrency,
           type: 'EXPENSE',
           date: {
             gte: b.startDate,
@@ -287,6 +308,7 @@ export async function getUserFinancialContext(
 
       return {
         categoryName: b.category?.name || 'Overall Budget',
+        currencyCode: budgetCurrency,
         budgetAmount,
         actualSpent,
         remaining,
@@ -308,6 +330,7 @@ export async function getUserFinancialContext(
 
     return {
       name: g.name,
+      currencyCode: g.currencyCode || preferredCurrency,
       targetAmount,
       currentAmount,
       remaining,
@@ -322,6 +345,7 @@ export async function getUserFinancialContext(
     date: t.date.toISOString().split('T')[0],
     description: t.description || 'Transaction',
     category: t.category?.name || 'Uncategorized',
+    currencyCode: t.currencyCode || preferredCurrency,
     amount: toNum(t.amount),
     type: t.type,
   }));
@@ -329,6 +353,7 @@ export async function getUserFinancialContext(
   const largestExpenses = largestRawExpenses.map((t) => ({
     description: t.description || 'Expense',
     category: t.category?.name || 'Uncategorized',
+    currencyCode: t.currencyCode || preferredCurrency,
     amount: toNum(t.amount),
     date: t.date.toISOString().split('T')[0],
   }));
@@ -346,7 +371,7 @@ export async function getUserFinancialContext(
 
     if (matchedCategory) {
       const catTxList = await prisma.transaction.findMany({
-        where: { userId, categoryId: matchedCategory.id, type: 'EXPENSE' },
+        where: { userId, categoryId: matchedCategory.id, type: 'EXPENSE', currencyCode: preferredCurrency },
         orderBy: { date: 'desc' },
         take: 10,
       });
@@ -356,10 +381,12 @@ export async function getUserFinancialContext(
 
       matchedSpecificCategory = {
         name: matchedCategory.name,
+        currencyCode: preferredCurrency,
         amount: catSum,
         percentage: catPercentage,
         transactions: catTxList.map((t) => ({
           description: t.description || 'Expense',
+          currencyCode: t.currencyCode || preferredCurrency,
           amount: toNum(t.amount),
           date: t.date.toISOString().split('T')[0],
         })),
@@ -373,10 +400,11 @@ export async function getUserFinancialContext(
   ];
 
   return {
-    user: { name: userName },
+    user: { name: userName, preferredCurrency },
     currentPeriod: {
       monthName: monthNames[currentMonth],
       year: currentYear,
+      currencyCode: preferredCurrency,
       totalIncome,
       totalExpenses,
       balance,
@@ -386,16 +414,18 @@ export async function getUserFinancialContext(
     previousPeriod: {
       monthName: monthNames[(currentMonth + 11) % 12],
       year: currentMonth === 0 ? currentYear - 1 : currentYear,
+      currencyCode: preferredCurrency,
       totalExpenses: prevExpenses,
       totalIncome: prevIncome,
       expenseDiff,
       expenseDiffPercent,
     },
     last7Days: {
+      currencyCode: preferredCurrency,
       totalExpenses: toNum(last7DaysAgg._sum.amount),
       transactionCount: last7DaysCount,
     },
-    topCategories,
+    topCategories: topCategories.map((c) => ({ ...c, currencyCode: preferredCurrency })),
     largestExpenses,
     recentTransactions,
     budgets,
@@ -408,9 +438,10 @@ export async function getUserFinancialContext(
 
 export function formatFinancialContextForPrompt(ctx: FinancialContext): string {
   const { currentPeriod, previousPeriod, last7Days, topCategories, largestExpenses, budgets, savingsGoals, totalSavedInGoals, categoryIncreases, matchedSpecificCategory } = ctx;
+  const pref = ctx.user.preferredCurrency || 'INR';
 
   const topCatsStr = topCategories.length > 0
-    ? topCategories.map((c) => `- ${c.name}: $${c.amount.toLocaleString()} (${c.percentage}% of spending, ${c.count} transactions)`).join('\n')
+    ? topCategories.map((c) => `- ${c.name}: ${formatCurrency(c.amount, c.currencyCode || pref)} (${c.percentage}% of spending, ${c.count} transactions)`).join('\n')
     : 'No expenses recorded in categories yet.';
 
   const categoryDiffStr = categoryIncreases.length > 0
@@ -420,45 +451,45 @@ export function formatFinancialContextForPrompt(ctx: FinancialContext): string {
     : 'No category comparison data available.';
 
   const largestExpStr = largestExpenses.length > 0
-    ? largestExpenses.map((e) => `- $${e.amount.toLocaleString()} on "${e.description}" (${e.category}) on ${e.date}`).join('\n')
+    ? largestExpenses.map((e) => `- ${formatCurrency(e.amount, e.currencyCode || pref)} on "${e.description}" (${e.category}) on ${e.date}`).join('\n')
     : 'No large expenses recorded.';
 
   const budgetsStr = budgets.length > 0
-    ? budgets.map((b) => `- ${b.categoryName}: Budget $${b.budgetAmount.toLocaleString()} | Spent $${b.actualSpent.toLocaleString()} | Remaining $${b.remaining.toLocaleString()} (${b.percentage}% used)${b.isOverBudget ? ' ⚠️ OVER BUDGET' : ''}`).join('\n')
+    ? budgets.map((b) => `- ${b.categoryName}: Budget ${formatCurrency(b.budgetAmount, b.currencyCode || pref)} | Spent ${formatCurrency(b.actualSpent, b.currencyCode || pref)} | Remaining ${formatCurrency(b.remaining, b.currencyCode || pref)} (${b.percentage}% used)${b.isOverBudget ? ' ⚠️ OVER BUDGET' : ''}`).join('\n')
     : 'No active budgets set.';
 
   const goalsStr = savingsGoals.length > 0
-    ? savingsGoals.map((g) => `- ${g.name}: Target $${g.targetAmount.toLocaleString()} | Saved $${g.currentAmount.toLocaleString()} (${g.percentage}%) | Remaining $${g.remaining.toLocaleString()}${g.targetDate ? ` | Target Date: ${g.targetDate}` : ''}${g.isCompleted ? ' ✅ COMPLETED' : ''}`).join('\n')
+    ? savingsGoals.map((g) => `- ${g.name}: Target ${formatCurrency(g.targetAmount, g.currencyCode || pref)} | Saved ${formatCurrency(g.currentAmount, g.currencyCode || pref)} (${g.percentage}%) | Remaining ${formatCurrency(g.remaining, g.currencyCode || pref)}${g.targetDate ? ` | Target Date: ${g.targetDate}` : ''}${g.isCompleted ? ' ✅ COMPLETED' : ''}`).join('\n')
     : 'No savings goals set.';
 
   let specificCatStr = '';
   if (matchedSpecificCategory) {
     specificCatStr = `\nSPECIFIC CATEGORY MATCH (${matchedSpecificCategory.name}):
-- Total Spent: $${matchedSpecificCategory.amount.toLocaleString()} (${matchedSpecificCategory.percentage}% of total expenses)
+- Total Spent: ${formatCurrency(matchedSpecificCategory.amount, matchedSpecificCategory.currencyCode || pref)} (${matchedSpecificCategory.percentage}% of total expenses)
 - Recent ${matchedSpecificCategory.name} Transactions:
-${matchedSpecificCategory.transactions.map((t) => `  * $${t.amount.toLocaleString()} - ${t.description} on ${t.date}`).join('\n')}\n`;
+${matchedSpecificCategory.transactions.map((t) => `  * ${formatCurrency(t.amount, t.currencyCode || pref)} - ${t.description} on ${t.date}`).join('\n')}\n`;
   }
 
   return `=== AUTHENTIC USER FINANCIAL DATA (${currentPeriod.monthName} ${currentPeriod.year}) ===
-USER: ${ctx.user.name}
+USER: ${ctx.user.name} (Preferred Currency: ${pref})
 
 CURRENT PERIOD SUMMARY (${currentPeriod.monthName} ${currentPeriod.year}):
-- Total Income: $${currentPeriod.totalIncome.toLocaleString()}
-- Total Expenses: $${currentPeriod.totalExpenses.toLocaleString()}
-- Net Balance / Cash Flow: $${currentPeriod.balance.toLocaleString()}
+- Total Income: ${formatCurrency(currentPeriod.totalIncome, currentPeriod.currencyCode || pref)}
+- Total Expenses: ${formatCurrency(currentPeriod.totalExpenses, currentPeriod.currencyCode || pref)}
+- Net Balance / Cash Flow: ${formatCurrency(currentPeriod.balance, currentPeriod.currencyCode || pref)}
 - Savings Rate: ${currentPeriod.savingsRate}%
 - Total Transactions: ${currentPeriod.transactionCount}
 
 PREVIOUS PERIOD COMPARISON (${previousPeriod.monthName} ${previousPeriod.year}):
-- Previous Month Expenses: $${previousPeriod.totalExpenses.toLocaleString()}
-- Previous Month Income: $${previousPeriod.totalIncome.toLocaleString()}
-- Expense Change: ${previousPeriod.expenseDiff >= 0 ? `+$${previousPeriod.expenseDiff.toLocaleString()} (+${previousPeriod.expenseDiffPercent}%)` : `-$${Math.abs(previousPeriod.expenseDiff).toLocaleString()} (-${previousPeriod.expenseDiffPercent}%)`}
+- Previous Month Expenses: ${formatCurrency(previousPeriod.totalExpenses, previousPeriod.currencyCode || pref)}
+- Previous Month Income: ${formatCurrency(previousPeriod.totalIncome, previousPeriod.currencyCode || pref)}
+- Expense Change: ${previousPeriod.expenseDiff >= 0 ? `+${formatCurrency(previousPeriod.expenseDiff, previousPeriod.currencyCode || pref)} (+${previousPeriod.expenseDiffPercent}%)` : `-${formatCurrency(Math.abs(previousPeriod.expenseDiff), previousPeriod.currencyCode || pref)} (-${previousPeriod.expenseDiffPercent}%)`}
 
 CATEGORY MONTH-OVER-MONTH CHANGES:
 ${categoryDiffStr}
 
 LAST 7 DAYS:
-- Spending: $${last7Days.totalExpenses.toLocaleString()} across ${last7Days.transactionCount} transactions
+- Spending: ${formatCurrency(last7Days.totalExpenses, last7Days.currencyCode || pref)} across ${last7Days.transactionCount} transactions
 
 CATEGORY BREAKDOWN:
 ${topCatsStr}
@@ -471,7 +502,7 @@ ${budgetsStr}
 
 SAVINGS GOALS:
 ${goalsStr}
-- Total Saved Across All Goals: $${totalSavedInGoals.toLocaleString()}
+- Total Saved Across All Goals: ${formatCurrency(totalSavedInGoals, pref)}
 ${specificCatStr}
 ===================================================`;
 }

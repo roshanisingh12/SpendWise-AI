@@ -18,6 +18,7 @@ export interface ApiTransaction {
   categoryId?: string | null;
   date: string;
   amount: number;
+  currencyCode: string;
   type: 'income' | 'expense';
   account: string;
 }
@@ -25,6 +26,7 @@ export interface ApiTransaction {
 export interface CreateTransactionPayload {
   type: 'INCOME' | 'EXPENSE';
   amount: number;
+  currencyCode?: string;
   categoryId?: string | null;
   description?: string | null;
   date: string;
@@ -33,6 +35,7 @@ export interface CreateTransactionPayload {
 export interface UpdateTransactionPayload {
   type?: 'INCOME' | 'EXPENSE';
   amount?: number;
+  currencyCode?: string;
   categoryId?: string | null;
   description?: string | null;
   date?: string;
@@ -41,11 +44,44 @@ export interface UpdateTransactionPayload {
 export interface TransactionFilterParams {
   type?: 'INCOME' | 'EXPENSE' | 'income' | 'expense' | 'All';
   categoryId?: string;
+  currencyCode?: string;
   startDate?: string;
   endDate?: string;
   search?: string;
   limit?: number;
   page?: number;
+}
+
+export interface ApiBudget {
+  id: string;
+  category: string;
+  categoryId?: string | null;
+  limit: number;
+  currencyCode: string;
+}
+
+export interface ApiGoal {
+  id: string;
+  name: string;
+  target: number;
+  saved: number;
+  currencyCode: string;
+  date: string;
+  color: string;
+}
+
+export interface ApiSummary {
+  period: { year: number; month: number };
+  preferredCurrency: string;
+  activeCurrency: string;
+  byCurrency: Record<string, { income: number; expense: number; balance: number; transactionCount: number }>;
+  savingsByCurrency: Record<string, number>;
+  totalIncome: number;
+  totalExpenses: number;
+  balance: number;
+  transactionCount: number;
+  totalSaved: number;
+  savingsGoalCount: number;
 }
 
 export class ApiService {
@@ -86,7 +122,12 @@ export class ApiService {
   static login(credentials: Record<string, unknown>) { return this.request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }); }
   static register(userData: Record<string, unknown>) { return this.request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }); }
   static getMe() { return this.request('/auth/me'); }
-  static updateProfile(data: { name?: string; email?: string }) { return this.request('/users/me', { method: 'PATCH', body: JSON.stringify(data) }); }
+  static updateUser(data: { name?: string; email?: string; preferredCurrency?: string }) {
+    return this.request('/users/me', { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  static updateProfile(data: { name?: string; email?: string; preferredCurrency?: string }) {
+    return this.updateUser(data);
+  }
   static logout() { return this.request('/auth/logout', { method: 'POST' }); }
 
   // --- Categories ---
@@ -108,6 +149,7 @@ export class ApiService {
       const sp = new URLSearchParams();
       if (params.type && params.type !== 'All') sp.append('type', params.type.toUpperCase());
       if (params.categoryId && params.categoryId !== 'All') sp.append('categoryId', params.categoryId);
+      if (params.currencyCode && params.currencyCode !== 'ALL') sp.append('currencyCode', params.currencyCode);
       if (params.startDate) sp.append('startDate', params.startDate);
       if (params.endDate) sp.append('endDate', params.endDate);
       if (params.search) sp.append('search', params.search);
@@ -126,6 +168,7 @@ export class ApiService {
       categoryId?: string | null;
       date: string;
       amount: string | number;
+      currencyCode?: string;
       type: 'INCOME' | 'EXPENSE';
     }>;
 
@@ -136,6 +179,7 @@ export class ApiService {
       categoryId: item.categoryId ?? undefined,
       date: typeof item.date === 'string' ? item.date.split('T')[0] : new Date(item.date).toISOString().split('T')[0],
       amount: Number(item.amount),
+      currencyCode: item.currencyCode || 'INR',
       type: item.type.toLowerCase() as 'income' | 'expense',
       account: 'Checking'
     }));
@@ -151,6 +195,7 @@ export class ApiService {
       categoryId: item.categoryId ?? undefined,
       date: typeof item.date === 'string' ? item.date.split('T')[0] : new Date(item.date).toISOString().split('T')[0],
       amount: Number(item.amount),
+      currencyCode: item.currencyCode || 'INR',
       type: item.type.toLowerCase() as 'income' | 'expense',
       account: 'Checking'
     };
@@ -166,6 +211,7 @@ export class ApiService {
       categoryId: item.categoryId ?? undefined,
       date: typeof item.date === 'string' ? item.date.split('T')[0] : new Date(item.date).toISOString().split('T')[0],
       amount: Number(item.amount),
+      currencyCode: item.currencyCode || 'INR',
       type: item.type.toLowerCase() as 'income' | 'expense',
       account: 'Checking'
     };
@@ -176,40 +222,69 @@ export class ApiService {
   }
   
   // --- Budgets ---
-  static async getBudgets() { 
+  static async getBudgets(): Promise<ApiBudget[]> { 
     const result = await this.request('/budgets'); 
     return (result.budgets || []).map((item: any) => ({
       id: item.id,
       category: item.category?.name || 'Uncategorized',
       categoryId: item.categoryId,
-      limit: Number(item.amount)
+      limit: Number(item.amount),
+      currencyCode: item.currencyCode || 'INR'
     }));
   }
   
-  static createBudget(data: any) { return this.request('/budgets', { method: 'POST', body: JSON.stringify(data) }); }
+  static createBudget(data: { categoryId?: string | null; amount: number; currencyCode?: string; period?: string; startDate?: string; endDate?: string | null }) {
+    return this.request('/budgets', { method: 'POST', body: JSON.stringify(data) });
+  }
   static deleteBudget(id: string) { return this.request(`/budgets/${id}`, { method: 'DELETE' }); }
 
   // --- Savings Goals ---
-  static async getGoals() {
+  static async getGoals(): Promise<ApiGoal[]> {
     const result = await this.request('/savings-goals');
     return (result.goals || []).map((item: any) => ({
       id: item.id,
       name: item.name,
       target: Number(item.targetAmount),
       saved: Number(item.currentAmount),
+      currencyCode: item.currencyCode || 'INR',
       date: item.targetDate ? item.targetDate.split('T')[0] : '',
       color: '#22a06b' // default color
     }));
   }
 
-  static createGoal(data: any) { return this.request('/savings-goals', { method: 'POST', body: JSON.stringify(data) }); }
+  static createGoal(data: { name: string; targetAmount: number; currentAmount?: number; currencyCode?: string; targetDate?: string | null }) {
+    return this.request('/savings-goals', { method: 'POST', body: JSON.stringify(data) });
+  }
   static updateGoal(id: string, data: any) { return this.request(`/savings-goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   static deleteGoal(id: string) { return this.request(`/savings-goals/${id}`, { method: 'DELETE' }); }
 
   // --- Analytics ---
-  static getSummary() { return this.request('/analytics/summary'); }
-  static getMonthly() { return this.request('/analytics/monthly'); }
-  static getCategoryAnalytics() { return this.request('/analytics/categories'); }
+  static getSummary(year?: number, month?: number, currencyCode?: string): Promise<ApiSummary> {
+    const sp = new URLSearchParams();
+    if (year !== undefined) sp.append('year', String(year));
+    if (month !== undefined) sp.append('month', String(month));
+    if (currencyCode) sp.append('currencyCode', currencyCode);
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+    return this.request(`/analytics/summary${qs}`);
+  }
+  
+  static getMonthly(months?: number, currencyCode?: string) {
+    const sp = new URLSearchParams();
+    if (months !== undefined) sp.append('months', String(months));
+    if (currencyCode) sp.append('currencyCode', currencyCode);
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+    return this.request(`/analytics/monthly${qs}`);
+  }
+
+  static getCategoryAnalytics(startDate?: string, endDate?: string, currencyCode?: string) {
+    const sp = new URLSearchParams();
+    if (startDate) sp.append('startDate', startDate);
+    if (endDate) sp.append('endDate', endDate);
+    if (currencyCode) sp.append('currencyCode', currencyCode);
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+    return this.request(`/analytics/categories${qs}`);
+  }
+
   static getBudgetProgress() { return this.request('/analytics/budget-progress'); }
   static getSavingsProgress() { return this.request('/analytics/savings-progress'); }
 
@@ -236,4 +311,3 @@ export class ApiService {
     return this.request('/ai/suggestions');
   }
 }
-

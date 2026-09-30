@@ -1,13 +1,26 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
 import * as analyticsService from '../services/analyticsService';
-import { sendSuccess } from '../utils/response';
+import { sendSuccess, sendError } from '../utils/response';
 
 export async function summary(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const year = req.query.year ? parseInt(String(req.query.year), 10) : undefined;
-    const month = req.query.month ? parseInt(String(req.query.month), 10) : undefined;
-    const result = await analyticsService.getSummary(req.user!.id, year, month);
+    const rawYear = req.query.year ? parseInt(String(req.query.year), 10) : undefined;
+    const rawMonth = req.query.month ? parseInt(String(req.query.month), 10) : undefined;
+
+    // Validate year range if provided
+    if (rawYear !== undefined && (isNaN(rawYear) || rawYear < 2000 || rawYear > 2100)) {
+      sendError(res, 'Invalid year. Must be between 2000 and 2100.', 400);
+      return;
+    }
+    // Validate month range if provided
+    if (rawMonth !== undefined && (isNaN(rawMonth) || rawMonth < 1 || rawMonth > 12)) {
+      sendError(res, 'Invalid month. Must be between 1 and 12.', 400);
+      return;
+    }
+
+    const currencyCode = req.query.currencyCode ? String(req.query.currencyCode).trim().toUpperCase() : undefined;
+    const result = await analyticsService.getSummary(req.user!.id, rawYear, rawMonth, currencyCode);
     sendSuccess(res, result);
   } catch (error) {
     next(error);
@@ -16,8 +29,11 @@ export async function summary(req: AuthenticatedRequest, res: Response, next: Ne
 
 export async function monthly(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const months = req.query.months ? parseInt(String(req.query.months), 10) : 6;
-    const result = await analyticsService.getMonthlyAnalytics(req.user!.id, months);
+    const rawMonths = req.query.months ? parseInt(String(req.query.months), 10) : 6;
+    // Clamp to 1–24 months to prevent unbounded loops
+    const months = isNaN(rawMonths) ? 6 : Math.max(1, Math.min(24, rawMonths));
+    const currencyCode = req.query.currencyCode ? String(req.query.currencyCode).trim().toUpperCase() : undefined;
+    const result = await analyticsService.getMonthlyAnalytics(req.user!.id, months, currencyCode);
     sendSuccess(res, { months: result });
   } catch (error) {
     next(error);
@@ -28,7 +44,8 @@ export async function categories(req: AuthenticatedRequest, res: Response, next:
   try {
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
-    const result = await analyticsService.getCategoryAnalytics(req.user!.id, startDate, endDate);
+    const currencyCode = req.query.currencyCode ? String(req.query.currencyCode).trim().toUpperCase() : undefined;
+    const result = await analyticsService.getCategoryAnalytics(req.user!.id, startDate, endDate, currencyCode);
     sendSuccess(res, { categories: result });
   } catch (error) {
     next(error);
@@ -52,3 +69,4 @@ export async function savingsProgress(req: AuthenticatedRequest, res: Response, 
     next(error);
   }
 }
+

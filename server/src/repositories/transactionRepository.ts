@@ -9,6 +9,7 @@ interface ListTransactionsOptions {
   skip: number;
   type?: 'INCOME' | 'EXPENSE';
   categoryId?: string;
+  currencyCode?: string;
   startDate?: string;
   endDate?: string;
   search?: string;
@@ -19,6 +20,7 @@ export async function listTransactions(opts: ListTransactionsOptions) {
 
   if (opts.type) where.type = opts.type;
   if (opts.categoryId) where.categoryId = opts.categoryId;
+  if (opts.currencyCode) where.currencyCode = opts.currencyCode;
   if (opts.startDate || opts.endDate) {
     where.date = {};
     if (opts.startDate) (where.date as Prisma.DateTimeFilter).gte = new Date(opts.startDate);
@@ -55,6 +57,7 @@ export async function createTransaction(userId: string, data: TransactionInput) 
       userId,
       type: data.type,
       amount: data.amount,
+      currencyCode: data.currencyCode || 'INR',
       categoryId: data.categoryId ?? null,
       description: data.description ?? null,
       date: new Date(data.date),
@@ -69,6 +72,7 @@ export async function updateTransaction(id: string, userId: string, data: Partia
     data: {
       ...(data.type && { type: data.type }),
       ...(data.amount !== undefined && { amount: data.amount }),
+      ...(data.currencyCode && { currencyCode: data.currencyCode }),
       ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
       ...(data.description !== undefined && { description: data.description }),
       ...(data.date && { date: new Date(data.date) }),

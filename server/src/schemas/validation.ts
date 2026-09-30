@@ -1,4 +1,13 @@
 import { z } from 'zod';
+import { VALID_CURRENCY_CODES } from '../utils/currency';
+
+const currencyCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine((code) => VALID_CURRENCY_CODES.includes(code), {
+    message: `Invalid ISO 4217 currency code. Must be one of: ${VALID_CURRENCY_CODES.join(', ')}`,
+  });
 
 export const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -8,6 +17,7 @@ export const registerSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
+  preferredCurrency: currencyCodeSchema.optional().default('INR'),
 });
 
 export const loginSchema = z.object({
@@ -18,6 +28,7 @@ export const loginSchema = z.object({
 export const updateUserSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   email: z.string().email().optional(),
+  preferredCurrency: currencyCodeSchema.optional(),
 }).refine((data) => Object.keys(data).length > 0, {
   message: 'At least one field must be provided for update',
 });
@@ -27,6 +38,7 @@ export const transactionSchema = z.object({
     errorMap: () => ({ message: 'Transaction type must be INCOME or EXPENSE' }),
   }),
   amount: z.coerce.number().positive('Amount must be a positive number'),
+  currencyCode: currencyCodeSchema.optional().default('INR'),
   categoryId: z
     .string()
     .trim()
@@ -69,6 +81,7 @@ export const budgetSchema = z.object({
     .or(z.literal(''))
     .transform((val) => (val === '' ? null : val ?? null)),
   amount: z.coerce.number().positive('Budget amount must be positive'),
+  currencyCode: currencyCodeSchema.optional().default('INR'),
   period: z.enum(['WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM']).default('MONTHLY'),
   startDate: z
     .string()
@@ -93,6 +106,7 @@ export const savingsGoalSchema = z.object({
   name: z.string().trim().min(1, 'Goal name is required').max(200),
   targetAmount: z.coerce.number().positive('Target amount must be positive'),
   currentAmount: z.coerce.number().min(0).optional().default(0),
+  currencyCode: currencyCodeSchema.optional().default('INR'),
   targetDate: z
     .string()
     .datetime()

@@ -5,6 +5,7 @@ import {
   FinancialContext,
 } from './aiContextService';
 import { AiChatMessageInput } from '../schemas/validation';
+import { formatCurrency, formatCurrencyShort } from '../utils/currency';
 
 export interface AiChatResponse {
   message: string;
@@ -21,10 +22,11 @@ Your job is to help the user understand their authenticated financial data, trac
 STRICT OPERATIONAL RULES:
 1. ONLY use the verified financial data provided in the prompt context.
 2. NEVER invent, hallucinate, or assume transactions, balances, dates, or account numbers that are not in the context.
-3. CLEARLY distinguish calculated facts (e.g. "You spent $450 on Dining") from suggestions/advice (e.g. "You could save $50 by eating out once less per week").
-4. Keep answers clear, well-structured, concise, and easy to read using Markdown (bullet points, bold highlights, tables when appropriate).
-5. If data for a requested item does not exist or is $0, state clearly that no records were found in the current period.
-6. FINANCIAL SAFETY: Provide educational insights, budgeting advice, and savings tips. Do NOT provide guaranteed investment promises or risky speculative advice. Always remain responsible and professional.`;
+3. ALWAYS respect the currency of each transaction and the user's preferred currency (e.g. INR ₹, USD $, EUR €, GBP £). NEVER swap currencies or convert without verified rates.
+4. CLEARLY distinguish calculated facts from suggestions/advice.
+5. Keep answers clear, well-structured, concise, and easy to read using Markdown (bullet points, bold highlights, tables when appropriate).
+6. If data for a requested item does not exist or is 0, state clearly that no records were found in the current period.
+7. FINANCIAL SAFETY: Provide educational insights, budgeting advice, and savings tips. Do NOT provide guaranteed investment promises or risky speculative advice. Always remain responsible and professional.`;
 
 /**
  * Deterministic Financial Reasoning Engine
@@ -37,9 +39,10 @@ function generateDeterministicFinancialResponse(
 ): string {
   const lower = message.toLowerCase();
   const { currentPeriod, previousPeriod, last7Days, topCategories, largestExpenses, budgets, savingsGoals, matchedSpecificCategory } = context;
+  const pref = context.user.preferredCurrency || 'INR';
 
-  const money = (val: number) => `$${Math.round(val).toLocaleString()}`;
-  const precise = (val: number) => `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const money = (val: number, code = pref) => formatCurrencyShort(val, code);
+  const precise = (val: number, code = pref) => formatCurrency(val, code);
 
   // 1. Category increase comparison: Which categories increased compared with last month?
   if (lower.includes('categor') && (lower.includes('increase') || lower.includes('went up') || lower.includes('rose') || lower.includes('higher') || lower.includes('grow') || lower.includes('compared'))) {
@@ -72,10 +75,10 @@ function generateDeterministicFinancialResponse(
 
       const txLines = matchedSpecificCategory.transactions.length > 0
         ? `\n\n**Recent ${matchedSpecificCategory.name} Transactions:**\n` +
-          matchedSpecificCategory.transactions.map((t) => `• ${t.date}: **${t.description}** — ${precise(t.amount)}`).join('\n')
+          matchedSpecificCategory.transactions.map((t) => `• ${t.date}: **${t.description}** — ${precise(t.amount, t.currencyCode)}`).join('\n')
         : '';
 
-      return `Based on your records for **${currentPeriod.monthName} ${currentPeriod.year}**, you have spent **${money(matchedSpecificCategory.amount)}** on **${matchedSpecificCategory.name}**.\n\n` +
+      return `Based on your records for **${currentPeriod.monthName} ${currentPeriod.year}**, you have spent **${money(matchedSpecificCategory.amount, matchedSpecificCategory.currencyCode)}** on **${matchedSpecificCategory.name}**.\n\n` +
         `This represents **${matchedSpecificCategory.percentage}%** of your total expenses (${money(currentPeriod.totalExpenses)}).${txLines}`;
     }
   }
@@ -84,8 +87,8 @@ function generateDeterministicFinancialResponse(
   if (lower.includes('spend the most') || lower.includes('largest category') || lower.includes('top category') || lower.includes('most of my money') || lower.includes('where did i spend')) {
     if (topCategories.length > 0) {
       const top = topCategories[0];
-      const otherTop = topCategories.slice(1, 4).map((c) => `• **${c.name}**: ${money(c.amount)} (${c.percentage}%)`).join('\n');
-      return `Your highest spending category this period is **${top.name}** with a total of **${money(top.amount)}**, making up **${top.percentage}%** of your total expenses.\n\n` +
+      const otherTop = topCategories.slice(1, 4).map((c) => `• **${c.name}**: ${money(c.amount, c.currencyCode)} (${c.percentage}%)`).join('\n');
+      return `Your highest spending category this period is **${top.name}** with a total of **${money(top.amount, top.currencyCode)}**, making up **${top.percentage}%** of your total expenses.\n\n` +
         (otherTop ? `**Other top spending areas:**\n${otherTop}\n\n` : '') +
         `💡 *Suggestion: Keep an eye on ${top.name} expenses to ensure they stay aligned with your monthly goals.*`;
     }
@@ -95,7 +98,7 @@ function generateDeterministicFinancialResponse(
   // 4. Biggest / Largest Expenses
   if (lower.includes('biggest expense') || lower.includes('largest expense') || lower.includes('biggest transactions')) {
     if (largestExpenses.length > 0) {
-      const list = largestExpenses.map((e, idx) => `${idx + 1}. **${e.description}** (${e.category}): ${money(e.amount)} on *${e.date}*`).join('\n');
+      const list = largestExpenses.map((e, idx) => `${idx + 1}. **${e.description}** (${e.category}): ${money(e.amount, e.currencyCode)} on *${e.date}*`).join('\n');
       return `Here are your largest individual expenses:\n\n${list}\n\n` +
         `These major purchases comprise a significant portion of your total monthly outflow.`;
     }
@@ -141,9 +144,9 @@ function generateDeterministicFinancialResponse(
     const budgetLines = budgets.map((b) => {
       const statusIcon = b.isOverBudget ? '⚠️' : b.percentage >= 80 ? '⚡' : '✅';
       const remainingText = b.isOverBudget
-        ? `Over by ${money(Math.abs(b.remaining))}`
-        : `${money(b.remaining)} remaining`;
-      return `${statusIcon} **${b.categoryName}**: Spent ${money(b.actualSpent)} of ${money(b.budgetAmount)} (${b.percentage}% used) — *${remainingText}*`;
+        ? `Over by ${money(Math.abs(b.remaining), b.currencyCode)}`
+        : `${money(b.remaining, b.currencyCode)} remaining`;
+      return `${statusIcon} **${b.categoryName}**: Spent ${money(b.actualSpent, b.currencyCode)} of ${money(b.budgetAmount, b.currencyCode)} (${b.percentage}% used) — *${remainingText}*`;
     }).join('\n');
 
     const totalLimit = budgets.reduce((s, b) => s + b.budgetAmount, 0);
@@ -159,7 +162,7 @@ function generateDeterministicFinancialResponse(
     if (savingsGoals.length > 0) {
       const goalLines = savingsGoals.map((g) => {
         const icon = g.isCompleted ? '🎉' : '🎯';
-        return `${icon} **${g.name}**: Saved ${money(g.currentAmount)} / ${money(g.targetAmount)} (**${g.percentage}%** complete, ${money(g.remaining)} to go)${g.targetDate ? ` • Target: ${g.targetDate}` : ''}`;
+        return `${icon} **${g.name}**: Saved ${money(g.currentAmount, g.currencyCode)} / ${money(g.targetAmount, g.currencyCode)} (**${g.percentage}%** complete, ${money(g.remaining, g.currencyCode)} to go)${g.targetDate ? ` • Target: ${g.targetDate}` : ''}`;
       }).join('\n');
 
       return `Here is your savings progress:\n\n${goalLines}\n\n` +
