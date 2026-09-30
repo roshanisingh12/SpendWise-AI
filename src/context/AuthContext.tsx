@@ -26,18 +26,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('spendwise-token'));
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchMe = async () => {
+  const fetchMe = React.useCallback(async () => {
     if (!token) return;
     try {
       const data = await ApiService.getMe();
       setUser(data.user);
-    } catch (err) {
+    } catch {
       // token likely invalid/expired
       localStorage.removeItem('spendwise-token');
       setToken(null);
       setUser(null);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (token) {
@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, fetchMe]);
 
   const login = async (email: string, password: string) => {
     const result = await ApiService.login({ email, password });
@@ -83,7 +83,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     try {
       await ApiService.logout();
-    } catch (_) {}
+    } catch {
+      // Fallback: continue clearing local session even if server logout endpoint errors
+    }
     localStorage.removeItem('spendwise-token');
     setToken(null);
     setUser(null);

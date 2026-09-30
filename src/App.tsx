@@ -4,7 +4,6 @@ import { AuthScreen } from './components/AuthScreen';
 import {
   ApiService,
   type ApiCategory,
-  type ApiTransaction,
   type CreateTransactionPayload,
   type UpdateTransactionPayload,
 } from './services/api';
@@ -52,19 +51,16 @@ import {
 import {
   formatCurrency,
   formatCurrencyShort,
-  detectCurrency,
-  extractAmount,
   SUPPORTED_CURRENCIES,
-  VALID_CURRENCY_CODES,
   getCurrencySymbol,
 } from './utils/currency';
 
 type Theme = 'light' | 'dark';
 type ThemePreference = Theme | 'system';
 type Page = 'dashboard' | 'transactions' | 'analytics' | 'budgets' | 'savings' | 'assistant' | 'settings';
-type Transaction = { id: string; merchant: string; category: string; categoryId?: string | null; date: string; amount: number; currencyCode: string; type: 'income' | 'expense'; account: string };
-type Budget = { id: string; category: string; categoryId?: string | null; limit: number; currencyCode: string };
-type Goal = { id: string; name: string; target: number; saved: number; currencyCode: string; date: string; color: string };
+type Transaction = { id: string; merchant: string; category: string; categoryId?: string | null; date: string; amount: number; currencyCode?: string; type: 'income' | 'expense'; account: string };
+type Budget = { id: string; category: string; categoryId?: string | null; limit: number; currencyCode?: string };
+type Goal = { id: string; name: string; target: number; saved: number; currencyCode?: string; date: string; color: string };
 
 type IconType = typeof LayoutDashboard;
 
@@ -205,8 +201,6 @@ function App() {
   const [page, setPage] = useState<Page>('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifications, setNotifications] = useState(0);
-  const [, setNotificationItems] = useState<any[]>([]);
-  const [, setInsights] = useState<any[]>([]);
   const [modal, setModal] = useState<'transaction' | 'budget' | 'goal' | 'upload' | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [toast, setToast] = useState('');
@@ -1441,12 +1435,6 @@ function Analytics({ transactions }: { transactions: Transaction[] }) {
   const { user } = useAuth();
   const userPref = user?.preferredCurrency || 'INR';
 
-  const availableCurrencies = useMemo(() => {
-    const set = new Set(transactions.map(t => t.currencyCode || userPref));
-    if (!set.has(userPref)) set.add(userPref);
-    return Array.from(set);
-  }, [transactions, userPref]);
-
   const [selectedCurrency, setSelectedCurrency] = useState(userPref);
   const [range, setRange] = useState('Last 6 months');
 
@@ -1975,7 +1963,7 @@ function FormattedMessageText({ text }: { text: string }) {
 
         // Bullet point
         if (trimmed.startsWith('•') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-          const content = trimmed.replace(/^[•\-\*]\s*/, '');
+          const content = trimmed.replace(/^[•\-*]\s*/, '');
           return (
             <div key={lIdx} className="message-bullet-item" style={{ display: 'flex', gap: '6px', margin: '2px 0' }}>
               <span style={{ opacity: 0.6 }}>•</span>
@@ -2498,6 +2486,7 @@ function TransactionModal({
       category: 'Dining',
       date: new Date().toISOString().slice(0, 10),
       amount: 0,
+      currencyCode: 'INR',
       type: 'expense',
       account: 'Checking',
     }
@@ -2675,7 +2664,7 @@ function BudgetModal({
     setSaving(true);
     setError('');
     try {
-      await onSave({ id: `b-${Date.now()}`, category, limit: numLimit });
+      await onSave({ id: `b-${Date.now()}`, category, limit: numLimit, currencyCode: 'INR' });
     } catch (err: any) {
       setError(err?.message || 'Failed to create budget.');
       setSaving(false);
@@ -2745,6 +2734,7 @@ function GoalModal({ onClose, onSave }: { onClose: () => void; onSave: (goal: Go
         name: name.trim(),
         target: numTarget,
         saved: 0,
+        currencyCode: 'INR',
         date,
         color: '#22a06b',
       });
@@ -2885,6 +2875,7 @@ function UploadModal({ onClose, onImport }: { onClose: () => void; onImport: (tr
               category: inferredCat || (txType === 'income' ? 'Income' : 'Shopping'),
               date: validDate || new Date().toISOString().slice(0, 10),
               amount: Math.abs(rawAmount),
+              currencyCode: 'INR',
               type: txType,
               account: 'Imported CSV',
             };

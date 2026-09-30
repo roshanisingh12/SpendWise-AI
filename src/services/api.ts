@@ -224,7 +224,7 @@ export class ApiService {
   // --- Budgets ---
   static async getBudgets(): Promise<ApiBudget[]> { 
     const result = await this.request('/budgets'); 
-    return (result.budgets || []).map((item: any) => ({
+    return (result.budgets || []).map((item: { id: string; category?: { name?: string } | null; categoryId?: string | null; amount: number | string; currencyCode?: string }) => ({
       id: item.id,
       category: item.category?.name || 'Uncategorized',
       categoryId: item.categoryId,
@@ -241,7 +241,7 @@ export class ApiService {
   // --- Savings Goals ---
   static async getGoals(): Promise<ApiGoal[]> {
     const result = await this.request('/savings-goals');
-    return (result.goals || []).map((item: any) => ({
+    return (result.goals || []).map((item: { id: string; name: string; targetAmount: number | string; currentAmount: number | string; currencyCode?: string; targetDate?: string | null }) => ({
       id: item.id,
       name: item.name,
       target: Number(item.targetAmount),
@@ -255,7 +255,9 @@ export class ApiService {
   static createGoal(data: { name: string; targetAmount: number; currentAmount?: number; currencyCode?: string; targetDate?: string | null }) {
     return this.request('/savings-goals', { method: 'POST', body: JSON.stringify(data) });
   }
-  static updateGoal(id: string, data: any) { return this.request(`/savings-goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  static updateGoal(id: string, data: Partial<{ name: string; targetAmount: number; currentAmount: number; currencyCode: string; targetDate: string | null }>) { 
+    return this.request(`/savings-goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); 
+  }
   static deleteGoal(id: string) { return this.request(`/savings-goals/${id}`, { method: 'DELETE' }); }
 
   // --- Analytics ---
