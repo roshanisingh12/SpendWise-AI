@@ -1,7 +1,16 @@
 // Frontend API Service
 // Handles communication with the Express backend
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+function resolveApiBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!envUrl) {
+    return 'http://localhost:5000/api';
+  }
+  const clean = envUrl.replace(/\/+$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+}
+
+export const API_BASE = resolveApiBaseUrl();
 
 export interface ApiCategory {
   id: string;
@@ -97,7 +106,8 @@ export class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const response = await fetch(`${API_BASE}${cleanEndpoint}`, {
       ...options,
       headers
     });

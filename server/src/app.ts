@@ -21,6 +21,12 @@ const app = express();
 
 // ─── Security Middleware ────────────────────────────────────────────────────
 app.use(helmet());
+
+const allowedClientOrigins = env.CLIENT_URL
+  .split(',')
+  .map((url) => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -28,14 +34,15 @@ app.use(
       if (!origin) {
         return callback(null, true);
       }
+      const normalizedOrigin = origin.replace(/\/+$/, '');
       if (
-        origin === env.CLIENT_URL ||
+        allowedClientOrigins.includes(normalizedOrigin) ||
         (env.NODE_ENV === 'development' &&
-          (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')))
+          (normalizedOrigin.startsWith('http://localhost:') || normalizedOrigin.startsWith('http://127.0.0.1:')))
       ) {
         return callback(null, true);
       }
-      return callback(new Error('CORS request blocked by security policy'));
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],

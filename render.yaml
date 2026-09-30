@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: spendwise-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build && npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: spendwise-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+databases:
+  - name: spendwise-db
+    databaseName: spendwise
+    user: spendwise_user
+    plan: free

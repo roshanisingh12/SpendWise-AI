@@ -2824,6 +2824,15 @@ function UploadModal({ onClose, onImport }: { onClose: () => void; onImport: (tr
 
   const parse = (file: File) => {
     setError('');
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (!file.name.toLowerCase().endsWith('.csv') && file.type && !file.type.includes('csv') && !file.type.includes('text')) {
+      setError('Please upload a valid CSV file (.csv).');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size exceeds the 10MB limit.');
+      return;
+    }
     setFileName(file.name);
     const reader = new FileReader();
 
