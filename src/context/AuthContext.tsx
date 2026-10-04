@@ -26,8 +26,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('spendwise-token'));
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchMe = React.useCallback(async () => {
-    if (!token) return;
+  const fetchMe = React.useCallback(async (explicitToken?: string) => {
+    const activeToken = explicitToken || localStorage.getItem('spendwise-token');
+    if (!activeToken) {
+      setUser(null);
+      return;
+    }
     try {
       const data = await ApiService.getMe();
       setUser(data.user);
@@ -37,11 +41,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setToken(null);
       setUser(null);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     if (token) {
-      fetchMe().finally(() => setLoading(false));
+      fetchMe(token).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
@@ -53,7 +57,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (newToken) {
       localStorage.setItem('spendwise-token', newToken);
       setToken(newToken);
-      await fetchMe();
+      if (result.user) {
+        setUser(result.user);
+      } else {
+        await fetchMe(newToken);
+      }
     }
   };
 
@@ -63,7 +71,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (newToken) {
       localStorage.setItem('spendwise-token', newToken);
       setToken(newToken);
-      await fetchMe();
+      if (result.user) {
+        setUser(result.user);
+      } else {
+        await fetchMe(newToken);
+      }
     }
   };
 

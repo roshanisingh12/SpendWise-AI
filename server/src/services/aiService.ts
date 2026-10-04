@@ -221,33 +221,51 @@ async function callGemini(
   userMessage: string,
   conversationHistory: AiChatMessageInput[] = []
 ): Promise<string> {
-  const model = modelName || 'gemini-1.5-flash';
+  // Use gemini-2.5-flash as the default — gemini-1.5-flash is deprecated
+  const model = modelName || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const contents = [
-    {
-      role: 'user',
-      parts: [{ text: `${systemPrompt}\n\nUser Question: ${userMessage}` }],
-    },
-  ];
+  // Build contents array: history (alternating user/model) + current user message
+  // Gemini requires strict alternation: user → model → user → model ...
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
   if (conversationHistory.length > 0) {
-    // Map prior messages
-    const historyParts = conversationHistory.slice(-6).map((msg) => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
-    }));
-    contents.unshift(...historyParts);
+    // Filter to only user/assistant messages (skip system), keep last 6, ensure alternation
+    const filtered = conversationHistory
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .slice(-6);
+    for (const msg of filtered) {
+      contents.push({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      });
+    }
   }
 
+  // Append the current user message
+  contents.push({
+    role: 'user',
+    parts: [{ text: userMessage }],
+  });
+
+  // Increase timeout to 30s — large financial context prompts can be slow
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents }),
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents,
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 1024,
+        },
+      }),
       signal: controller.signal,
     });
 
@@ -260,7 +278,13 @@ async function callGemini(
 
     const data = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      error?: { message: string };
     };
+
+    if (data.error) {
+      throw new Error(`Gemini error: ${data.error.message}`);
+    }
+
     const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!candidateText) {
       throw new Error('Gemini response did not contain valid text.');
@@ -350,9 +374,10 @@ export async function generateChatResponse(
   // 3. Attempt LLM execution if key exists
   if (geminiKey) {
     try {
+      const chosenModel = env.AI_MODEL || 'gemini-2.5-flash';
       const responseText = await callGemini(
         geminiKey,
-        env.AI_MODEL || 'gemini-1.5-flash',
+        chosenModel,
         fullSystemPrompt,
         userMessage,
         conversationHistory
@@ -362,18 +387,19 @@ export async function generateChatResponse(
         metadata: {
           usedFinancialData: true,
           provider: 'google-gemini',
-          model: env.AI_MODEL || 'gemini-1.5-flash',
+          model: chosenModel,
         },
       };
     } catch (err) {
-      console.warn('Google Gemini call failed, falling back to deterministic financial engine:', err);
+      console.error('Google Gemini call failed, falling back to deterministic financial engine:', err);
     }
   } else if (openAiKey) {
     try {
+      const chosenModel = env.AI_MODEL || 'gpt-4o-mini';
       const responseText = await callOpenAICompatible(
         openAiKey,
         'https://api.openai.com/v1',
-        env.AI_MODEL || 'gpt-4o-mini',
+        chosenModel,
         fullSystemPrompt,
         userMessage,
         conversationHistory
@@ -383,18 +409,19 @@ export async function generateChatResponse(
         metadata: {
           usedFinancialData: true,
           provider: 'openai',
-          model: env.AI_MODEL || 'gpt-4o-mini',
+          model: chosenModel,
         },
       };
     } catch (err) {
-      console.warn('OpenAI call failed, falling back to deterministic financial engine:', err);
+      console.error('OpenAI call failed, falling back to deterministic financial engine:', err);
     }
   } else if (groqKey) {
     try {
+      const chosenModel = env.AI_MODEL || 'llama-3.3-70b-versatile';
       const responseText = await callOpenAICompatible(
         groqKey,
         'https://api.groq.com/openai/v1',
-        env.AI_MODEL || 'llama-3.3-70b-versatile',
+        chosenModel,
         fullSystemPrompt,
         userMessage,
         conversationHistory
@@ -404,11 +431,11 @@ export async function generateChatResponse(
         metadata: {
           usedFinancialData: true,
           provider: 'groq',
-          model: env.AI_MODEL || 'llama-3.3-70b-versatile',
+          model: chosenModel,
         },
       };
     } catch (err) {
-      console.warn('Groq call failed, falling back to deterministic financial engine:', err);
+      console.error('Groq call failed, falling back to deterministic financial engine:', err);
     }
   }
 

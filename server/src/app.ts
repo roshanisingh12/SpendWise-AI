@@ -30,6 +30,8 @@ app.use(
       }
       if (
         origin === env.CLIENT_URL ||
+        origin.endsWith('.vercel.app') ||
+        (process.env.VERCEL_URL && origin.includes(process.env.VERCEL_URL)) ||
         (env.NODE_ENV === 'development' &&
           (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')))
       ) {
@@ -77,14 +79,16 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Health Check ────────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => {
+const healthHandler = (_req: express.Request, res: express.Response) => {
   res.status(200).json({
     success: true,
     message: 'Spendwise AI API is running',
     timestamp: new Date().toISOString(),
     environment: env.NODE_ENV,
   });
-});
+};
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
