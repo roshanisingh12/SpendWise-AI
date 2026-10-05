@@ -21,6 +21,12 @@ const app = express();
 
 // ─── Security Middleware ────────────────────────────────────────────────────
 app.use(helmet());
+
+const allowedClientOrigins = env.CLIENT_URL
+  .split(',')
+  .map((url) => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -28,16 +34,15 @@ app.use(
       if (!origin) {
         return callback(null, true);
       }
+      const normalizedOrigin = origin.replace(/\/+$/, '');
       if (
-        origin === env.CLIENT_URL ||
-        origin.endsWith('.vercel.app') ||
-        (process.env.VERCEL_URL && origin.includes(process.env.VERCEL_URL)) ||
+        allowedClientOrigins.includes(normalizedOrigin) ||
         (env.NODE_ENV === 'development' &&
-          (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')))
+          (normalizedOrigin.startsWith('http://localhost:') || normalizedOrigin.startsWith('http://127.0.0.1:')))
       ) {
         return callback(null, true);
       }
-      return callback(new Error('CORS request blocked by security policy'));
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
@@ -79,16 +84,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Health Check ────────────────────────────────────────────────────────────
-const healthHandler = (_req: express.Request, res: express.Response) => {
+app.get('/api/health', (_req, res) => {
   res.status(200).json({
     success: true,
     message: 'Spendwise AI API is running',
     timestamp: new Date().toISOString(),
     environment: env.NODE_ENV,
   });
-};
-app.get('/api/health', healthHandler);
-app.get('/health', healthHandler);
+});
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);

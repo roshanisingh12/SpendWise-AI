@@ -5,10 +5,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon",
-    "build": "npx prisma generate && tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "ts-node src/tests/financialLogic.test.ts",
+    "test": "ts-node src/tests/financialLogic.test.ts && ts-node src/tests/productionAudit.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

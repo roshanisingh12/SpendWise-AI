@@ -1,658 +1,245 @@
-
 # 💰 Spendwise AI — AI Personal Finance Manager
 
 > **See your money. Understand your future.**
 
-Spendwise AI is a **privacy-first AI Personal Finance Manager** designed as a college-level AI & Data Science project. It helps users track income and expenses, understand spending patterns, create budgets, predict future expenses, detect unusual spending, monitor savings goals, and receive AI-generated financial insights.
+Spendwise AI is a **privacy-first AI Personal Finance Manager** designed to help users track income and expenses, understand spending patterns, create realistic budgets, monitor savings goals, and receive AI-generated financial insights with mathematical integrity.
 
 The core idea is:
-
 **Track → Understand → Predict → Recommend → Improve**
 
 ---
 
-## 🎯 Problem Statement
+## 🏗️ Production Architecture
 
-Managing personal finances can be difficult because users often do not know:
+Spendwise AI is built as a modern, decoupled full-stack application:
 
-- Where most of their money is being spent
-- Whether they are overspending
-- How much they can safely spend
-- Whether they are on track toward a savings goal
-- How much they may spend in the future
-
-Existing expense trackers mainly display transaction records. Spendwise AI aims to go one step further by combining **Machine Learning + Generative AI + Data Security** to provide personalized insights.
-
----
-
-## 💡 Proposed Solution
-
-Spendwise AI analyzes financial transaction data and converts it into understandable recommendations.
-
-For example:
-
-> **AI Insight:** Your shopping expenses increased by 32% compared with last month. Reducing non-essential shopping by ₹1,500 could help you reach your savings goal earlier.
-
-The system does **not** require users to provide banking passwords, UPI PINs, OTPs, CVV, or other authentication secrets.
-
----
-
-# 🏗️ System Architecture
+* **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS (Deployed on **Vercel**)
+* **Backend:** Node.js + Express + TypeScript + Zod (Deployed on **Render**)
+* **Database:** Managed **PostgreSQL** provisioned via **Prisma ORM**
+* **AI Engine:** Server-Side **Google Gemini API** (with OpenAI/Groq support and a built-in **Deterministic Financial Reasoning Engine** fallback)
 
 ```text
-                         ┌─────────────────────┐
-                         │        USER         │
-                         │                     │
-                         │  Add Transaction    │
-                         │  Upload Statement   │
-                         │  Set Savings Goal   │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                    ┌───────────────────────────┐
-                    │      INPUT LAYER          │
-                    │                           │
-                    │ • Manual Transactions     │
-                    │ • GPay/Bank Statement     │
-                    │   Upload (PDF/CSV)        │
-                    └─────────────┬─────────────┘
-                                  │
-                                  ▼
-                    ┌───────────────────────────┐
-                    │     DATA PROCESSING       │
-                    │                           │
-                    │ • PDF/CSV Extraction      │
-                    │ • Data Cleaning            │
-                    │ • Missing Value Handling  │
-                    │ • Feature Engineering     │
-                    │ • Expense Categorization │
-                    └─────────────┬─────────────┘
-                                  │
-                                  ▼
-                    ┌───────────────────────────┐
-                    │     SECURITY LAYER 🔐     │
-                    │                           │
-                    │ • Authentication          │
-                    │ • Password Hashing         │
-                    │ • Encryption              │
-                    │ • Data Minimization       │
-                    │ • User Data Isolation     │
-                    └─────────────┬─────────────┘
-                                  │
-                                  ▼
-              ┌───────────────────┴──────────────────┐
-              │                                      │
-              ▼                                      ▼
-   ┌──────────────────────┐              ┌──────────────────────┐
-   │    DATABASE 🗄️       │              │     ML ENGINE 🧠     │
-   │                      │              │                      │
-   │ PostgreSQL           │              │ Expense Category     │
-   │ Transactions         │              │ Spending Prediction  │
-   │ Budgets              │              │ Anomaly Detection    │
-   │ Savings Goals        │              │ Financial Score      │
-   └──────────┬───────────┘              └──────────┬───────────┘
-              │                                     │
-              └─────────────────┬───────────────────┘
-                                ▼
-                    ┌───────────────────────────┐
-                    │       AI ENGINE 🤖        │
-                    │                           │
-                    │       Gemini API          │
-                    │                           │
-                    │ • Financial Chatbot       │
-                    │ • Explain ML Results      │
-                    │ • Generate Insights       │
-                    │ • Personalized Guidance   │
-                    └─────────────┬─────────────┘
-                                  │
-                                  ▼
-                    ┌───────────────────────────┐
-                    │       DASHBOARD 📊        │
-                    │                           │
-                    │ • Income                  │
-                    │ • Expenses                │
-                    │ • Spending Charts         │
-                    │ • Budget                  │
-                    │ • Savings Progress        │
-                    │ • AI Insights             │
-                    │ • Financial Health Score  │
-                    └───────────────────────────┘
+ ┌────────────────────────────────────────────────────────┐
+ │                   FRONTEND (Vercel)                    │
+ │  • React 18 + Vite SPA                                 │
+ │  • Client-side In-Memory Statement Parsing (CSV)       │
+ │  • Configured via VITE_API_BASE_URL                    │
+ └───────────────────────────┬────────────────────────────┘
+                             │ HTTPS / CORS
+                             ▼
+ ┌────────────────────────────────────────────────────────┐
+ │                    BACKEND (Render)                    │
+ │  • Express 4 REST API + TypeScript                     │
+ │  • Rate Limiting, Helmet Security, Zod Validation      │
+ │  • Strict User Isolation & Multi-Tenancy               │
+ │  • JWT Authentication (Bearer Tokens)                  │
+ └─────────────┬────────────────────────────┬─────────────┘
+               │                            │
+               ▼                            ▼
+ ┌───────────────────────────┐ ┌──────────────────────────┐
+ │   DATABASE (PostgreSQL)   │ │    AI ENGINE (Server)    │
+ │ • Managed PostgreSQL      │ │ • Google Gemini API      │
+ │ • Prisma ORM & Migrations │ │ • OpenAI / Groq Support  │
+ │ • ACID Data Guarantees    │ │ • Deterministic Fallback │
+ └───────────────────────────┘ └──────────────────────────┘
 ```
 
 ---
 
-# 🔧 Technology Stack
+## 🔧 Actual Technology Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | React.js, Tailwind CSS |
-| Backend | Python, FastAPI |
-| Database | PostgreSQL |
-| Data Processing | Pandas, NumPy |
-| Machine Learning | Scikit-learn |
-| Generative AI | Gemini API |
-| Visualization | Recharts / Chart.js |
-| Statement Processing | PDF/CSV parsing |
-| Authentication | JWT |
-| Password Security | bcrypt / Argon2 |
-| Deployment | Vercel + Render/Railway |
+| Layer | Technology | Details |
+|---|---|---|
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS | High-performance SPA with client-side CSV processing and interactive charts |
+| **Backend** | Node.js, Express 4, TypeScript | Modular REST API with typed Zod validation schemas and Helmet security |
+| **Database** | PostgreSQL | Managed relational database with foreign keys, indexes, and ACID guarantees |
+| **ORM** | Prisma ORM 5 | Type-safe queries, connection pooling, and automated schema migrations |
+| **Authentication** | JWT & bcrypt | Bearer token authorization with 10-round salted bcrypt password hashing |
+| **AI Integration** | Google Gemini / OpenAI / Groq | Server-side only; deterministic mathematical engine fallback |
+| **Deployment** | Vercel (Frontend) + Render (Backend) | Automated deployments with Render Blueprints (`render.yaml`) |
 
 ---
 
-# 📊 Data Sources
+## 🚀 Local Setup
 
-Spendwise AI uses two different types of financial data.
+### Prerequisites
+* **Node.js** (v18 or higher)
+* **npm** (v9 or higher)
+* **PostgreSQL** instance (local or hosted like Supabase/Neon/Render)
 
-## 1. Public/Kaggle Datasets — Model Training
-
-Public financial datasets can be used to train and evaluate ML models.
-
-Possible datasets include:
-
-- Indian Personal Finance & Spending Habits
-- Financial Transactions Dataset
-- Personal Finance Dataset
-- BudgetWise Personal Finance Dataset
-- Synthetic Indian Financial Transactions
-
-These datasets are used for **model development, testing, and evaluation**, not as a source of real user banking credentials.
-
-## 2. User Financial Data — Application Usage
-
-The application can receive user data through:
-
-### Manual Entry
-
-```text
-Amount: ₹350
-Category: Food
-Payment: UPI
-Date: 15/09/2026
-```
-
-### Statement Upload
-
-The user may upload an exported **PDF/CSV bank or payment statement**, where supported.
-
-The application extracts useful transaction information such as:
-
-```text
-Date
-Merchant
-Amount
-Debit/Credit
-Payment Method
-Category
-```
-
-Spendwise AI does **not** directly request a user's Google Pay password, UPI PIN, OTP, bank password, or card CVV.
-
----
-
-# 🧠 Machine Learning Components
-
-For a college-level implementation, Spendwise AI focuses on three major ML tasks.
-
-## 1. Expense Categorization
-
-Automatically predicts the category of a transaction.
-
-**Example:**
-
-```text
-"Swiggy ₹450"
-       ↓
-ML Model
-       ↓
-Food
-```
-
-Possible algorithms:
-
-- Logistic Regression
-- Random Forest
-- Decision Tree
-
----
-
-## 2. Expense Prediction
-
-Uses historical spending to estimate future expenses.
-
-```text
-January   → ₹15,000
-February  → ₹17,000
-March     → ₹16,500
-April     → ₹18,000
-                ↓
-          ML Prediction
-                ↓
-May       → Estimated Expense
-```
-
-Possible approaches:
-
-- Linear Regression
-- Random Forest Regression
-- Time-Series methods
-
----
-
-## 3. Anomaly Detection
-
-Identifies unusual spending patterns.
-
-```text
-Normal Shopping:
-₹500 – ₹2,000
-
-Sudden Transaction:
-₹15,000
-
-        ↓
-
-⚠️ Unusual Spending Detected
-```
-
-Possible algorithm:
-
-**Isolation Forest**
-
----
-
-# 🤖 Generative AI Layer
-
-Machine Learning performs the numerical analysis, while Generative AI makes the results understandable to the user.
-
-```text
-Transaction Data
-       ↓
-ML Analysis
-       ↓
-"Shopping increased by 32%"
-       ↓
-Gemini
-       ↓
-Natural-Language Explanation
-       ↓
-Personalized Recommendation
-```
-
-### Example
-
-**ML Output:**
-
-```text
-Food spending:
-Current month = ₹4,250
-Previous month = ₹3,100
-Increase = 37.1%
-```
-
-**AI Output:**
-
-> Your food spending increased significantly this month. Consider setting a food budget of ₹3,500–₹4,000 next month.
-
----
-
-# 🔐 Data Security & Privacy
-
-**Data security is a core part of Spendwise AI.**
-
-## Sensitive information we DO NOT collect
-
-- ❌ UPI PIN
-- ❌ OTP
-- ❌ Bank password
-- ❌ Card CVV
-- ❌ Full card number
-- ❌ Payment authentication credentials
-
-## Data Minimization
-
-Only required financial information should be processed.
-
-```text
-Raw Statement
-      ↓
-Extract Required Fields
-      ↓
-Remove Unnecessary Sensitive Information
-      ↓
-Store Required Transaction Data
-```
-
-## AI Privacy Layer
-
-Raw personal information should not be unnecessarily sent to the external AI model.
-
-Instead of sending:
-
-```text
-Name
-Account Number
-Transaction Details
-```
-
-the AI can receive a minimized context such as:
-
-```text
-Monthly Income: ₹30,000
-Food Spending: ₹4,250
-Shopping Spending: ₹3,500
-Savings: ₹11,600
-```
-
-This reduces unnecessary exposure of sensitive information.
-
-## User Data Isolation
-
-Each user's data is associated with their authenticated user ID.
-
-```text
-User A → User A Transactions Only
-User B → User B Transactions Only
-```
-
----
-
-# 📱 Main Application Modules
-
-1. **Authentication**
-2. **Dashboard**
-3. **Transaction Management**
-4. **Statement Upload**
-5. **Expense Categorization**
-6. **Spending Analytics**
-7. **Budget Planner**
-8. **Savings Goals**
-9. **Expense Prediction**
-10. **Anomaly Detection**
-11. **Financial Health Score**
-12. **AI Financial Assistant**
-13. **Security & Privacy**
-
----
-
-# 📊 Proposed Dashboard
-
-```text
-┌──────────────────────────────────────────┐
-│             FINANCIAL DASHBOARD          │
-├──────────────────────────────────────────┤
-│ Income             ₹30,000               │
-│ Expenses           ₹18,400               │
-│ Savings            ₹11,600               │
-│ Financial Score    78 / 100              │
-├──────────────────────────────────────────┤
-│ Top Spending Categories                  │
-│                                          │
-│ Food             ₹4,200                  │
-│ Shopping         ₹3,500                  │
-│ Transport        ₹2,100                  │
-│ Entertainment    ₹1,800                  │
-├──────────────────────────────────────────┤
-│ 🤖 AI Insight                            │
-│                                          │
-│ "Your shopping expenses increased by     │
-│ 32% compared with last month."           │
-└──────────────────────────────────────────┘
-```
-
----
-
-# 📁 Project Structure
-
-```text
-Spendwise AI/
-│
-├── frontend/
-│   ├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-│
-├── backend/
-│   ├── main.py
-│   ├── routes/
-│   ├── models/
-│   ├── services/
-│   └── database/
-│
-├── ml/
-│   ├── data/
-│   ├── notebooks/
-│   ├── preprocessing/
-│   ├── models/
-│   └── predictions/
-│
-├── ai/
-│   ├── prompts/
-│   └── assistant.py
-│
-├── uploads/
-│
-├── requirements.txt
-├── .env.example
-├── .gitignore
-└── README.md
-```
-
----
-
-# ⚙️ Installation
-
-## 1. Clone the Repository
-
+### 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/spendwise-ai.git
-cd spendwise-ai
+git clone https://github.com/roshanisingh12/SpendWise-AI.git
+cd SpendWise-AI
 ```
 
-## 2. Create Python Virtual Environment
-
+### 2. Backend Setup
 ```bash
-python -m venv venv
-```
-
-### Windows
-
-```bash
-venv\Scriptsctivate
-```
-
-### macOS/Linux
-
-```bash
-source venv/bin/activate
-```
-
-## 3. Install Python Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-## 4. Install Frontend Dependencies
-
-```bash
-cd frontend
+cd server
 npm install
+
+# Create environment configuration
+cp .env.example .env
 ```
 
-## 5. Environment Variables
-
-Create a `.env` file:
-
+Edit `server/.env`:
 ```env
-DATABASE_URL=your_database_url
-GEMINI_API_KEY=your_gemini_api_key
-JWT_SECRET=your_secret_key
+DATABASE_URL="postgresql://postgres:password@localhost:5432/spendwise"
+JWT_SECRET="a-very-secure-jwt-secret-with-at-least-32-characters"
+JWT_EXPIRES_IN="7d"
+PORT=5000
+CLIENT_URL="http://localhost:5173"
+NODE_ENV="development"
+GEMINI_API_KEY="" # Optional: Add your Gemini key or leave blank for deterministic engine
 ```
 
-**Never commit `.env` to GitHub.**
-
-## 6. Run Backend
-
+Apply migrations and generate Prisma client:
 ```bash
-uvicorn backend.main:app --reload
+npx prisma migrate dev
 ```
 
-## 7. Run Frontend
-
+Start backend development server:
 ```bash
-cd frontend
 npm run dev
 ```
+The API will run at `http://localhost:5000/api` (Health check: `http://localhost:5000/api/health`).
 
----
+### 3. Frontend Setup
+In a new terminal window at the repository root:
+```bash
+npm install
 
-# 🔄 Complete Data Flow
-
-```text
-User
- ↓
-Manual Entry / Statement Upload
- ↓
-PDF/CSV Extraction
- ↓
-Data Cleaning
- ↓
-Feature Engineering
- ↓
-Security & Data Minimization
- ↓
-Encrypted Database
- ↓
-ML Models
- ├── Expense Categorization
- ├── Expense Prediction
- └── Anomaly Detection
- ↓
-Financial Analysis
- ↓
-AI Explanation & Recommendations
- ↓
-Dashboard
- ↓
-User
+# Create frontend environment configuration
+cp .env.example .env
 ```
 
----
-
-# 🎯 Project Objectives
-
-- Develop an intelligent personal finance management system
-- Automate expense categorization
-- Analyze spending behaviour
-- Predict future expenses
-- Detect unusual transactions
-- Help users create realistic budgets
-- Track savings goals
-- Provide conversational AI-based financial insights
-- Minimize exposure of sensitive financial information
-
----
-
-# 🌟 Unique Selling Proposition
-
-## **"A Privacy-First AI Financial Coach"**
-
-Unlike a traditional expense tracker, Spendwise AI combines:
-
-**Personal Finance + Machine Learning + Generative AI + Data Security**
-
-The system does not simply show users their spending. It analyzes their financial behaviour and provides understandable, personalized actions while following a **data-minimization approach**.
-
----
-
-# 🏆 Why This Project Is Suitable for a College Project
-
-Spendwise AI demonstrates multiple important concepts from AI & Data Science:
-
-- Data collection
-- Data preprocessing
-- Exploratory Data Analysis
-- Feature engineering
-- Classification
-- Regression
-- Anomaly detection
-- Generative AI
-- Database management
-- Backend API development
-- Frontend development
-- Authentication
-- Data security
-- Data visualization
-
-The project is also modular, allowing the team to implement a basic version first and add advanced features later.
-
----
-
-# 🔮 Future Scope
-
-- Secure financial-data integrations
-- Automatic statement synchronization
-- OCR-based receipt scanning
-- Voice-based financial assistant
-- Subscription detection
-- Advanced financial forecasting
-- Multi-language support
-- Mobile application
-- Explainable AI
-- Personalized financial planning
-- Advanced investment insights
-
----
-
-# ⚠️ Disclaimer
-
-Spendwise AI is an educational/project application. Its AI-generated insights are for informational purposes only and should not be considered professional financial, investment, tax, or legal advice.
-
----
-
-## 💙 Spendwise AI
-
-### **See your money. Understand your future.**
-  
-
-## Environment Configuration
-
-### Frontend (`.env`)
-Required variables for the Vite frontend:
-
+Edit `.env`:
 ```env
 VITE_API_BASE_URL=http://localhost:5000/api
 ```
 
-### Backend (`server/.env`)
-Required variables for the Express backend:
+Start the frontend development server:
+```bash
+npm run dev
+```
+Open `http://localhost:5173` in your browser.
 
-```env
-DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/spendwise"
-JWT_SECRET="your-secure-jwt-secret"
-JWT_EXPIRES_IN=7d
-PORT=5000
-CLIENT_URL=http://localhost:5173
-NODE_ENV=development
+---
+
+## ⚙️ Environment Variables
+
+### Frontend Variables (`.env`)
+| Variable | Description | Example |
+|---|---|---|
+| `VITE_API_BASE_URL` | Base URL of the backend API (publicly exposed to browser bundle) | `https://spendwise-api.onrender.com/api` or `/api` |
+
+> ⚠️ **IMPORTANT:** Never put database credentials, private API keys, or JWT secrets in `VITE_*` variables. They are compiled into the client-side JavaScript.
+
+### Backend Variables (`server/.env`)
+| Variable | Required | Description | Example |
+|---|---|---|---|
+| `DATABASE_URL` | **Yes** | PostgreSQL connection string | `postgresql://user:pass@host:5432/spendwise` |
+| `JWT_SECRET` | **Yes** | Secret string for signing auth tokens (minimum 32 characters) | `e.g. 64-char random hex string` |
+| `JWT_EXPIRES_IN` | No | Expiration duration for JWT tokens (default: `7d`) | `7d` |
+| `PORT` | No | Port to bind backend server (Render sets automatically) | `5000` or `10000` |
+| `CLIENT_URL` | **Yes** (Prod) | Allowed origin(s) for CORS (comma-separated for multiples) | `https://spendwise-ai.vercel.app` |
+| `NODE_ENV` | No | Runtime environment (`development` or `production`) | `production` |
+| `GEMINI_API_KEY` | No | Google Gemini API Key for financial chatbot (optional) | `AIzaSy...` |
+| `AI_PROVIDER` | No | Alternative AI provider (`gemini`, `openai`, `groq`) | `gemini` |
+| `OPENAI_API_KEY` | No | OpenAI API Key if using OpenAI provider | `sk-...` |
+
+---
+
+## 🗄️ Database Setup & Migrations
+
+Spendwise AI uses **Prisma Migrations** for zero-downtime automated schema deployment:
+
+1. **Initialize fresh database in production:**
+   ```bash
+   npx prisma migrate deploy
+   ```
+   This executes the SQL migration history:
+   * `20260917141950_init` (User, Category, Transaction, Budget, SavingsGoal, FinancialInsight, Notification tables)
+   * `20260920000000_add_currency_columns` (Multi-currency support and indexing)
+
+2. **Self-provisioning Accounts:**
+   No seed script or demo data is required. When a user registers (`POST /api/auth/register`), default categories (Groceries, Dining, Transport, Housing, etc.) are automatically provisioned specifically for that user.
+
+3. **Prisma Studio (Local DB Inspector):**
+   ```bash
+   npm run prisma:studio --prefix server
+   ```
+
+---
+
+## 🌐 Deployment Guide
+
+### 1. Backend Deployment on Render
+
+1. Log in to your [Render Dashboard](https://dashboard.render.com).
+2. Create a **Managed PostgreSQL Database**:
+   * Name: `spendwise-db`
+   * Database: `spendwise`
+   * User: `spendwise_user`
+   * Plan: `Free`
+   * Copy the **Internal Database URL**.
+3. Create a **Web Service**:
+   * Connect your GitHub repository: `SpendWise-AI`
+   * **Root Directory:** `server`
+   * **Runtime:** `Node`
+   * **Build Command:** `npm install && npm run build && npx prisma migrate deploy`
+   * **Start Command:** `npm start`
+   * **Health Check Path:** `/api/health`
+4. Set **Environment Variables** in Render Dashboard:
+   * `NODE_ENV` = `production`
+   * `PORT` = `10000`
+   * `DATABASE_URL` = (Reference `spendwise-db` or paste connection string)
+   * `JWT_SECRET` = (Generate a strong 32+ character string)
+   * `JWT_EXPIRES_IN` = `7d`
+   * `CLIENT_URL` = `https://<your-vercel-app>.vercel.app`
+   * `GEMINI_API_KEY` = *(Optional)* Your Google Gemini API key
+5. Alternatively, deploy automatically using the included [`render.yaml`](render.yaml) Blueprint!
+
+### 2. Frontend Deployment on Vercel
+
+1. Log in to [Vercel](https://vercel.com) and click **Add New Project**.
+2. Import your GitHub repository: `SpendWise-AI`.
+3. Configure Project Settings:
+   * **Framework Preset:** `Vite`
+   * **Root Directory:** `./` (Leave as root)
+   * **Build Command:** `npm run build`
+   * **Output Directory:** `dist`
+4. Configure **Environment Variables**:
+   * `VITE_API_BASE_URL` = `https://<your-render-backend-name>.onrender.com/api`
+5. Click **Deploy**.
+6. Once deployed, copy your live Vercel domain and update `CLIENT_URL` in your Render backend settings!
+
+---
+
+## 🔐 Security & Privacy Architecture
+
+* **Zero Banking Credentials Required:** Spendwise AI never requests passwords, UPI PINs, bank credentials, OTPs, or CVV.
+* **Server-Side Secret Isolation:** AI keys (`GEMINI_API_KEY`), database URLs (`DATABASE_URL`), and `JWT_SECRET` reside solely in backend memory and are never sent to the browser.
+* **Client-Side Statement Parsing:** Uploaded CSV statements are parsed in browser memory via the HTML5 `FileReader` API. File contents are never stored on local disks, server storage, or cloud buckets.
+* **Strict User Isolation:** All database queries across transactions, budgets, goals, and analytics are scoped strictly to the authenticated user's ID (`req.user.id`). Cross-tenant access is blocked at the database query level.
+* **Safe AI Integration:** Only calculated financial summaries (percentages, category sums, first name) are included in AI context prompts. Sensitive identifiers and authentication tokens are never shared with AI providers.
+* **Deterministic Fallback:** If AI keys are absent or API quotas are exhausted, the built-in deterministic reasoning engine answers questions with 100% mathematical accuracy directly from real database metrics.
+
+---
+
+## 🧪 Testing & Validation
+
+```bash
+# Frontend validation
+npm run typecheck
+npm run lint
+npm run build
+
+# Backend automated test suites
+npm test --prefix server
 ```
 
+---
 
-## AI Configuration
-
-SpendWise AI uses a server-side AI provider to power the financial assistant.
-
-**Required server-side environment variable (in server/.env):**
-
-`env
-GEMINI_API_KEY=your-google-gemini-api-key
-# OR
-OPENAI_API_KEY=your-openai-api-key
-# OR
-AI_PROVIDER=groq
-AI_API_KEY=your-groq-api-key
-`
-
-> **IMPORTANT:** The AI API key must NEVER be placed in VITE_* frontend variables or any file accessible to the browser.
-
-If no API key is configured, SpendWise AI automatically uses its built-in deterministic financial reasoning engine, which calculates accurate responses from your real database data.
+## 💙 Spendwise AI
+**See your money. Understand your future.**
