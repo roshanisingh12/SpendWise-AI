@@ -3,6 +3,9 @@ import { env } from './config/env';
 import { prisma } from './config/prisma';
 
 async function main() {
+  await prisma.$connect();
+  console.log('✅ Database connection established.');
+
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`
   🚀 Spendwise AI API is running
@@ -18,14 +21,6 @@ async function main() {
 
   if (env.NODE_ENV === 'production' && env.CLIENT_URL.includes('localhost')) {
     console.warn('⚠️  CLIENT_URL is set to localhost in production. Please set CLIENT_URL to your deployed Vercel frontend URL in production.');
-  }
-
-  // Verify DB connection at startup (non-fatal if database takes a few seconds to warm up)
-  try {
-    await prisma.$connect();
-    console.log('✅ Database connection established.');
-  } catch (error) {
-    console.warn('⚠️  Database connection could not be established immediately. Prisma will connect on request.');
   }
 
   // Graceful shutdown
@@ -64,4 +59,7 @@ async function main() {
   });
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error('❌ API startup failed. The server was not started.', error);
+  process.exit(1);
+});

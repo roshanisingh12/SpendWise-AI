@@ -9,6 +9,7 @@ import {
   budgetSchema,
   savingsGoalSchema,
 } from '../schemas/validation';
+import { envSchema } from '../config/env';
 
 async function runProductionAuditTests() {
   console.log('🚀 Running SpendWise End-to-End Production Readiness Test Suite...\n');
@@ -72,6 +73,25 @@ async function runProductionAuditTests() {
     const token = jwt.sign({ userId: 'usr-1' }, TEST_JWT_SECRET, { expiresIn: '0s' });
     assert.throws(() => jwt.verify(token, TEST_JWT_SECRET), jwt.TokenExpiredError);
     assert.throws(() => jwt.verify('invalid.jwt.token', TEST_JWT_SECRET), jwt.JsonWebTokenError);
+  });
+
+  await test('Environment: Rejects malformed and non-PostgreSQL database URLs', () => {
+    const validConfig = {
+      JWT_SECRET: TEST_JWT_SECRET,
+      NODE_ENV: 'test',
+    };
+    assert.equal(
+      envSchema.safeParse({ ...validConfig, DATABASE_URL: 'postgresql://localhost:5432/spendwise' }).success,
+      true
+    );
+    assert.equal(
+      envSchema.safeParse({ ...validConfig, DATABASE_URL: 'localhost:5432/spendwise' }).success,
+      false
+    );
+    assert.equal(
+      envSchema.safeParse({ ...validConfig, DATABASE_URL: 'mysql://localhost:3306/spendwise' }).success,
+      false
+    );
   });
 
   // ── 2. User Isolation & Multi-Tenancy ──
