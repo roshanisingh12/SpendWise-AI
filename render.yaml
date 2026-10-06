@@ -3,7 +3,7 @@ services:
     name: spendwise-api
     runtime: node
     rootDir: server
-    buildCommand: npm install && npm run build && npx prisma migrate deploy
+    buildCommand: npm install --include=dev && npm run build && npx prisma migrate deploy
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
