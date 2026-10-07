@@ -18,6 +18,7 @@ import insightRoutes from './routes/insightRoutes';
 import aiRoutes from './routes/aiRoutes';
 
 const app = express();
+app.set("trust proxy", 1);
 
 // ─── Security Middleware ────────────────────────────────────────────────────
 app.use(helmet());
