@@ -28,7 +28,7 @@ const allowedClientOrigins = env.CLIENT_URL
   .map((url) => url.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
-app.use(
+app.use( 
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, server-to-server)
