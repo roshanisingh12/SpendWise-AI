@@ -454,33 +454,29 @@ function App() {
     }
   };
 
+  const [importing, setImporting] = useState(false);
+
   const importTransactions = async (incoming: Transaction[]) => {
+    if (importing) return;
+    setImporting(true);
     try {
-      let count = 0;
-      for (const item of incoming) {
-        try {
-          const matchedCat = categoriesList.find(
-            (c) => c.name.toLowerCase() === item.category.toLowerCase()
-          );
-          await ApiService.createTransaction({
-            type: (item.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
-            amount: item.amount,
-            currencyCode: item.currencyCode || user?.preferredCurrency || 'INR',
-            categoryId: matchedCat?.id || null,
-            description: item.merchant,
-            date: item.date,
-          });
-          count++;
-        } catch (e) {
-          console.warn('Failed to import transaction row:', item, e);
-        }
-      }
+      const payload = incoming.map((item) => ({
+        type: (item.type.toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
+        amount: item.amount,
+        currencyCode: item.currencyCode || user?.preferredCurrency || 'INR',
+        categoryId: null as null,
+        description: item.merchant,
+        date: item.date,
+      }));
+      const { count } = await ApiService.bulkImportTransactions(payload);
       await loadUserData();
       setModal(null);
       setToast(`${count} transactions imported successfully`);
     } catch (err: any) {
       console.error('Failed to import CSV:', err);
       setToast(`Import failed: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -602,7 +598,7 @@ function App() {
           onSave={addGoal}
         />
       )}
-      {modal === 'upload' && <UploadModal onClose={() => setModal(null)} onImport={importTransactions} />}
+      {modal === 'upload' && <UploadModal onClose={() => setModal(null)} onImport={importTransactions} importing={importing} />}
       {editingTransaction && (
         <TransactionModal
           initial={editingTransaction}
@@ -2816,7 +2812,7 @@ function parseCsvLine(text: string): string[] {
   return result;
 }
 
-function UploadModal({ onClose, onImport }: { onClose: () => void; onImport: (transactions: Transaction[]) => void }) {
+function UploadModal({ onClose, onImport, importing = false }: { onClose: () => void; onImport: (transactions: Transaction[]) => void; importing?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState<Transaction[]>([]);
@@ -2961,11 +2957,11 @@ function UploadModal({ onClose, onImport }: { onClose: () => void; onImport: (tr
         </div>
       )}
       <div className="modal-actions">
-        <Button variant="secondary" onClick={onClose}>
+        <Button variant="secondary" onClick={onClose} disabled={importing}>
           Cancel
         </Button>
-        <Button onClick={() => onImport(rows)} disabled={!rows.length}>
-          Import {rows.length || ''} transactions
+        <Button onClick={() => onImport(rows)} disabled={!rows.length || importing}>
+          {importing ? 'Importing…' : `Import ${rows.length || ''} transactions`}
         </Button>
       </div>
     </Modal>

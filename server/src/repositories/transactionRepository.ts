@@ -84,3 +84,18 @@ export async function updateTransaction(id: string, userId: string, data: Partia
 export async function deleteTransaction(id: string) {
   return prisma.transaction.delete({ where: { id } });
 }
+
+export async function bulkCreateTransactions(userId: string, items: TransactionInput[]) {
+  return prisma.transaction.createMany({
+    data: items.map((data) => ({
+      userId,
+      type: data.type,
+      amount: data.amount,
+      currencyCode: data.currencyCode || 'INR',
+      categoryId: data.categoryId ?? null,
+      description: data.description ?? null,
+      date: new Date(data.date),
+    })),
+    skipDuplicates: false,
+  });
+}

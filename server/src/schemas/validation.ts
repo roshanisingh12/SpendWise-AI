@@ -137,6 +137,14 @@ export type TransactionInput = z.infer<typeof transactionSchema>;
 export type CategoryInput = z.infer<typeof categorySchema>;
 export type BudgetInput = z.infer<typeof budgetSchema>;
 export type SavingsGoalInput = z.infer<typeof savingsGoalSchema>;
+export const bulkTransactionSchema = z.object({
+  transactions: z
+    .array(transactionSchema)
+    .min(1, 'At least one transaction is required')
+    .max(500, 'Cannot import more than 500 transactions at once'),
+});
+
+export type BulkTransactionInput = z.infer<typeof bulkTransactionSchema>;
 export type AiChatInput = z.infer<typeof aiChatSchema>;
 export type AiChatMessageInput = z.infer<typeof aiChatMessageSchema>;
 

@@ -210,6 +210,14 @@ export class ApiService {
       account: 'Checking'
     };
   }
+
+  static async bulkImportTransactions(transactions: CreateTransactionPayload[]): Promise<{ count: number }> {
+    const result = await this.request('/transactions/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ transactions }),
+    });
+    return { count: result.count ?? 0 };
+  }
   
   static async updateTransaction(id: string, data: UpdateTransactionPayload): Promise<ApiTransaction> { 
     const result = await this.request(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); 

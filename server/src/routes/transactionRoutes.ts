@@ -9,6 +9,8 @@ router.use(authenticate);
 router.get('/', transactionController.list);
 // POST   /api/transactions
 router.post('/', transactionController.create);
+// POST   /api/transactions/bulk
+router.post('/bulk', transactionController.bulkCreate);
 // GET    /api/transactions/:id
 router.get('/:id', transactionController.getById);
 // PATCH  /api/transactions/:id

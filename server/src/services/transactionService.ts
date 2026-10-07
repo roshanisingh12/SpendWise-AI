@@ -69,3 +69,9 @@ export async function deleteTransaction(id: string, userId: string) {
   return repo.deleteTransaction(id);
 }
 
+export async function bulkCreateTransactions(userId: string, items: TransactionInput[]) {
+  // Strip out any categoryId from CSV rows — they won't be valid UUIDs from the database
+  const sanitized = items.map((item) => ({ ...item, categoryId: null }));
+  return repo.bulkCreateTransactions(userId, sanitized);
+}
+

@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
 import * as transactionService from '../services/transactionService';
-import { transactionSchema, updateTransactionSchema } from '../schemas/validation';
+import { transactionSchema, updateTransactionSchema, bulkTransactionSchema } from '../schemas/validation';
 import { sendSuccess } from '../utils/response';
 
 export async function list(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -46,6 +46,16 @@ export async function remove(req: AuthenticatedRequest, res: Response, next: Nex
   try {
     await transactionService.deleteTransaction(req.params.id as string, req.user!.id);
     sendSuccess(res, null, 'Transaction deleted.');
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function bulkCreate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { transactions } = bulkTransactionSchema.parse(req.body);
+    const result = await transactionService.bulkCreateTransactions(req.user!.id, transactions);
+    sendSuccess(res, { count: result.count }, `${result.count} transactions imported.`, 201);
   } catch (error) {
     next(error);
   }
