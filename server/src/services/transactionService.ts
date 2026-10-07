@@ -70,8 +70,19 @@ export async function deleteTransaction(id: string, userId: string) {
 }
 
 export async function bulkCreateTransactions(userId: string, items: TransactionInput[]) {
-  // Strip out any categoryId from CSV rows — they won't be valid UUIDs from the database
-  const sanitized = items.map((item) => ({ ...item, categoryId: null }));
+  // Validate each categoryId (if provided) to ensure it belongs to the user
+  const sanitized = await Promise.all(
+    items.map(async (item) => {
+      if (item.categoryId) {
+        const category = await categoryRepo.findCategoryById(item.categoryId, userId);
+        if (!category) {
+          // Category not found or doesn't belong to user — clear it
+          return { ...item, categoryId: null };
+        }
+      }
+      return item;
+    })
+  );
   return repo.bulkCreateTransactions(userId, sanitized);
 }
 
